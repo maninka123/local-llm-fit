@@ -305,7 +305,7 @@ function Detail({ m }: { m: ModelVariant }) {
               onChange={(v) => setSettings({ memoryBasis: v })}
               options={[
                 { value: "live", label: "Live" },
-                { value: "planning", label: "Ideal" },
+                { value: "planning", label: "Normal use" },
               ]}
             /></>)}
 

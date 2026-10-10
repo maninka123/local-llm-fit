@@ -70,10 +70,10 @@ export function MachineBar() {
             className="badge demo"
             style={{ cursor: "pointer" }}
             onClick={() => setSetupOpen(true)}
-            data-tip={basis === "live" ? "Live: memory free right now, with your apps open. Click to change." : "Ideal: as if other apps were closed. Click to change."}
+            data-tip={basis === "live" ? "Live: memory free right now, with your apps open. Click to change." : "Normal use: keeps about 20% of memory for the system and apps. Click to change."}
             data-tip-pos="below"
           >
-            My computer · {basis === "live" ? "Live" : "Ideal"}
+            My computer · {basis === "live" ? "Live" : "Normal use"}
           </button>
         )}
         <span className="chip" title={`${hw.os.name} ${hw.os.version}`}>

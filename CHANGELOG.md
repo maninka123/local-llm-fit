@@ -2,8 +2,11 @@
 
 Short, user-facing notes. The section for each version is shown in the app's update window.
 
+## 1.0.14
+- Clearer memory choice: Live or Normal use
+
 ## 1.0.13
-- Choose Live (apps open) or Ideal (apps closed) memory for your computer
+- Choose Live (memory free now) or Normal use (typical background use) for your computer
 - Update button in the top-right corner when a new version is ready
 - Consistent fonts on Windows and Linux; centred text in the Data/Time bars
 

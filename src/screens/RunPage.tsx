@@ -348,7 +348,7 @@ export function RunPage() {
               onChange={(v) => setSettings({ memoryBasis: v })}
               options={[
                 { value: "live", label: "Live", title: "Memory free right now, with your apps open" },
-                { value: "planning", label: "Ideal (apps closed)", title: "Plan against total memory, keeping a reserve for the OS" },
+                { value: "planning", label: "Normal use", title: "Normal background use: keeps about 20% of memory for the system and apps" },
               ]}
             />}
             <InputPicker value={inputs} onChange={setInputs} />
@@ -360,7 +360,7 @@ export function RunPage() {
             <span>
               Only <b>{fmtBytes(est0.pools.ramFree)}</b> of {fmtBytes(machine.ramTotal)} is free right now because other apps are using memory. Switch to{" "}
               <button className="btn sm" onClick={() => setSettings({ memoryBasis: "planning" })}>
-                Ideal (apps closed)
+                Try with apps closed
               </button>{" "}
               to see what fits on a fresh start.
             </span>

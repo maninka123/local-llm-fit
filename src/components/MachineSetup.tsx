@@ -216,7 +216,7 @@ function DetectedFormInner({ native, overrides, onDone }: { native: import("../d
           onChange={(v) => useStore.getState().setSettings({ memoryBasis: v })}
           options={[
             { value: "live", label: "Live", title: "Memory free right now, with your apps open" },
-            { value: "planning", label: "Ideal (apps closed)", title: "As if other apps were closed, keeping a safety margin" },
+            { value: "planning", label: "Normal use", title: "Normal background use: keeps about 20% of memory for the system and apps" },
           ]}
         />
       </div>
