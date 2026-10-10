@@ -182,6 +182,19 @@ export function RunPage() {
               {hw.os.name} {hw.os.version} · detected {new Date(hw.detectedAt).toLocaleString()} ·{" "}
               {hw.mode === "browser" ? "estimated in your browser (exact readings need the desktop app)" : est0?.pools.mode === "live" ? "using live free-memory readings" : "planning mode (no live readings)"}
               {hw.mode === "demo" && <span className="badge demo" style={{ marginLeft: 8 }}>Sample machine</span>}
+              {(hw.mode == null || hw.mode === "native") && (
+                <button
+                  className="badge"
+                  style={{ marginLeft: 8, cursor: "pointer" }}
+                  data-tip="Something not right? Correct RAM, VRAM or other values"
+                  onClick={() => {
+                    navigate({ page: "settings" });
+                    setTimeout(() => document.getElementById("overrides")?.scrollIntoView({ behavior: "smooth", block: "start" }), 120);
+                  }}
+                >
+                  Adjust
+                </button>
+              )}
               {hw.mode === "browser" && (
                 <button className="badge demo" style={{ marginLeft: 8, cursor: "pointer" }} onClick={() => useStore.getState().setSetupOpen(true)}>
                   Browser estimate · edit

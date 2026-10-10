@@ -230,7 +230,7 @@ export function Settings() {
         ))}
       </section>
 
-      <section className="card">
+      <section className="card" id="overrides">
         <div className="card-head">
           <div>
             <h2>Manual overrides</h2>
