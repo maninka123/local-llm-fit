@@ -144,7 +144,7 @@ function Detail({ m }: { m: ModelVariant }) {
               {machine.arch === "discrete" && <Stat label="Usable VRAM" value={<AnimatedBytes bytes={est.pools.vramUsable} />} sub={est.pools.mode === "live" ? "live" : "planning"} />}
               {machine.arch === "unified" && <Stat label="GPU working set" value={<AnimatedBytes bytes={est.pools.unifiedGpuLimit} />} sub={machine.unifiedGpuLimitSource} />}
               <Stat label={machine.arch === "unified" ? "Usable unified" : "Usable RAM"} value={<AnimatedBytes bytes={est.pools.ramUsable} />} sub={est.pools.ramFree != null ? "live" : "planning"} />
-              {est.placement && est.placement.gpuFraction < 1 && est.placement.gpuFraction > 0 && (
+              {est.classification !== "cannot_fit" && est.placement && est.placement.gpuFraction < 1 && est.placement.gpuFraction > 0 && (
                 <Stat label="Planned on GPU" value={<span className="num">{Math.round(est.placement.gpuFraction * 100)}%</span>} sub="simulation" />
               )}
             </div>

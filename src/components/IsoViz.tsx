@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Zap } from "lucide-react";
+import { AlertTriangle, XCircle, Zap } from "lucide-react";
+import { useStore } from "../state/store";
 import type { Estimate, MachineProfile } from "../domain/estimator";
 import { fmtBytes, GiB } from "../lib/units";
 
@@ -7,7 +8,7 @@ import { fmtBytes, GiB } from "../lib/units";
 // chosen so everything fits on screen). The model is a cube of blocks; memory pools are
 // glass containers. Placement follows the estimator's planned placement (a simulation).
 
-type Kind = "w" | "wo" | "v" | "kv" | "rt" | "host" | "res" | "over";
+type Kind = "w" | "wo" | "v" | "kv" | "rt" | "host" | "res" | "over" | "evict";
 interface Block {
   key: string;
   kind: Kind;
@@ -123,6 +124,8 @@ export function IsoViz({ est, machine }: { est: Estimate; machine: MachineProfil
   const p = est.pools;
   const pl = est.placement;
   const unifiedLike = p.arch !== "discrete" || machine.gpuBackendSupported === false;
+  const constrained = est.classification === "memory_constrained";
+  const tooBig = est.classification === "cannot_fit";
   const isUnified = p.arch === "unified";
   const W = est.weights?.mid ?? 0;
   const vision = est.visionEncoder?.mid ?? 0;
@@ -181,7 +184,7 @@ export function IsoViz({ est, machine }: { est: Estimate; machine: MachineProfil
     }
     let blocks = stack(counts, side, 0, prefix);
     if (totalBytes > capBytes) {
-      for (const b of blocks.slice(capBlocks)) b.kind = "over";
+      for (const b of blocks.slice(capBlocks)) b.kind = constrained && b.kind === "res" ? "evict" : "over";
       // Show a short spill of red blocks, not a tower: the exact amount goes in the caption.
       const maxOver = side * side * 2;
       const overBlocks = blocks.length - capBlocks;
@@ -206,9 +209,11 @@ export function IsoViz({ est, machine }: { est: Estimate; machine: MachineProfil
   if (p.ramPhysical != null) {
     const r = box(p.ramPhysical);
     const reserve = Math.max(0, p.ramPhysical - (p.ramUsable ?? p.ramPhysical));
-    const parts: [Kind, number][] = unifiedLike
+    const partsRaw: [Kind, number][] = unifiedLike
       ? [["res", reserve], ["w", isUnified ? (pl?.gpuWeights ?? 0) : 0], ["wo", isUnified ? (pl?.cpuWeights ?? 0) : (pl?.cpuWeights ?? W)], ["kv", (pl?.gpuKv ?? 0) + (pl?.cpuKv ?? 0)], ["rt", pl?.gpuOther ?? 0], ["host", pl?.hostOther ?? host]]
       : [["res", reserve], ["wo", pl?.cpuWeights ?? 0], ["kv", pl?.cpuKv ?? 0], ["host", pl?.hostOther ?? host]];
+    // Tight fit: draw the model inside the box and let the apps' memory be what spills out.
+    const parts: [Kind, number][] = constrained ? [...partsRaw.filter(([k]) => k !== "res"), ...partsRaw.filter(([k]) => k === "res")] : partsRaw;
     const limitLevel = isUnified && p.unifiedGpuLimit != null ? (n(reserve) + n(p.unifiedGpuLimit)) / (r.side * r.side) : null;
     containers.push({
       title: isUnified ? "Unified memory" : "System RAM",
@@ -229,7 +234,7 @@ export function IsoViz({ est, machine }: { est: Estimate; machine: MachineProfil
   const slowKeys = containers.flatMap((c) => c.blocks.filter((b) => b.kind === "wo").map((b) => b.key));
   const containerLit = useMemo(() => {
     const map = new Map<string, "fast" | "slow">();
-    if (dense || !est.active || activeN === 0) return map;
+    if (dense || !est.active || activeN === 0 || tooBig) return map;
     let kFast = Math.min(fastKeys.length, Math.round(activeN * gpuShare));
     let kSlow = Math.min(slowKeys.length, activeN - kFast);
     if (gpuShare < 0.999 && slowKeys.length && kSlow === 0) {
@@ -239,7 +244,7 @@ export function IsoViz({ est, machine }: { est: Estimate; machine: MachineProfil
     for (const k of pickActive(fastKeys, kFast)) map.set(k, "fast");
     for (const k of pickActive(slowKeys, kSlow)) map.set(k, "slow");
     return map;
-  }, [dense, est.active, activeN, gpuShare, fastKeys.join(), slowKeys.join(), tick]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [dense, est.active, activeN, gpuShare, fastKeys.join(), slowKeys.join(), tick, tooBig]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const timeGpu = est.speed?.gpuTimeShare ?? null;
   const gpuLed = timeGpu != null ? timeGpu >= 0.5 : gpuShare >= 0.7;
@@ -252,6 +257,9 @@ export function IsoViz({ est, machine }: { est: Estimate; machine: MachineProfil
           ? { text: "Mostly GPU", tone: "var(--good)" }
           : { text: "CPU slows it down", tone: "var(--orange)" };
   const runnable = est.classification !== "cannot_fit" && est.classification !== "unknown";
+  const need = est.totalNeed?.mid ?? 0;
+  const machineTotal = (p.arch === "discrete" ? (p.vramPhysical ?? 0) : 0) + (p.ramPhysical ?? 0);
+  const freeNeeded = containers.reduce((a, c) => a + (c.overflow ?? 0), 0);
 
   // Fit everything on one row: measure the space and scale all drawings by the same factor.
   const ref = useRef<HTMLDivElement>(null);
@@ -315,8 +323,10 @@ export function IsoViz({ est, machine }: { est: Estimate; machine: MachineProfil
         {containers.map((c, i) => (
           <Fragment key={c.title}>
             {i > 0 && (
-              <div className={`iso-arrow ${offload > 0 ? "offload" : "idle"}`} aria-hidden>
-                {offload > 0 ? (
+              <div className={`iso-arrow ${tooBig ? "idle" : offload > 0 ? "offload" : "idle"}`} aria-hidden>
+                {tooBig ? (
+                  <span>too big</span>
+                ) : offload > 0 ? (
                   <>
                     <span className="flow-dots both">
                       <i />
@@ -335,13 +345,31 @@ export function IsoViz({ est, machine }: { est: Estimate; machine: MachineProfil
               <Container side={c.side} levels={c.levels} blocks={c.blocks} limitLevel={c.limitLevel} label={`${c.title}: ${c.sub}`} lit={containerLit} />
               <div className="iso-sub">
                 {c.sub}
-                {c.overflow ? <div className="iso-over">+{fmtBytes(c.overflow)} doesn't fit</div> : null}
               </div>
             </div>
           </Fragment>
         ))}
       </div>
-      {est.placement && runnable && (
+      {tooBig && (
+        <div className="work-row">
+          <span className="work-pill" style={{ ["--tone" as string]: "var(--bad)" }}>
+            <XCircle size={14} /> Too big: needs {fmtBytes(need)} · this computer has {fmtBytes(machineTotal)}
+          </span>
+        </div>
+      )}
+      {constrained && freeNeeded > 0 && (
+        <div className="work-row">
+          <span className="work-pill" style={{ ["--tone" as string]: "var(--orange)" }}>
+            <AlertTriangle size={14} /> {p.ramFree != null ? `Close apps to free ${fmtBytes(freeNeeded)}` : `Uses ${fmtBytes(freeNeeded)} of the system's safety margin`}
+          </span>
+          {p.ramFree != null && (
+            <button className="btn sm" onClick={() => useStore.getState().setSettings({ memoryBasis: "planning" })}>
+              What if I close apps?
+            </button>
+          )}
+        </div>
+      )}
+      {est.placement && runnable && !constrained && (
         <div className="work-row">
           <span className="work-pill" style={{ ["--tone" as string]: status.tone }}>
             <Zap size={14} /> {status.text}
@@ -383,6 +411,11 @@ export function IsoViz({ est, machine }: { est: Estimate; machine: MachineProfil
         {!dense && est.active && (
           <span>
             <i className="sw lit-sw" /> Active per word
+          </span>
+        )}
+        {containers.some((c) => c.blocks.some((b) => b.kind === "evict")) && (
+          <span>
+            <i className="sw k-evict" /> Memory to free
           </span>
         )}
         {[...containerLit.values()].includes("slow") && (

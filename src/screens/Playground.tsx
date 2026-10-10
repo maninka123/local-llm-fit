@@ -236,7 +236,7 @@ export function Playground() {
                   </div>
                 </div>
               )}
-              {est.placement && est.placement.gpuFraction > 0 && est.placement.gpuFraction < 1 && (
+              {est.classification !== "cannot_fit" && est.placement && est.placement.gpuFraction > 0 && est.placement.gpuFraction < 1 && (
                 <div>
                   <div className="eyebrow">On the GPU</div>
                   <div className="pg-big num">{Math.round(est.placement.gpuFraction * 100)}%</div>
