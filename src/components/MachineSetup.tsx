@@ -83,12 +83,12 @@ function SamplePicker({ onDone }: { onDone?: () => void }) {
         {changed && <span className="src-tag manual">Changed</span>}
       </span>
       <div className="stepper">
-        <button type="button" aria-label={`Less ${label}`} onClick={() => set(Math.max(1, (value ?? 0) - (value && value > 16 ? 8 : 2)))}>
+        <button type="button" aria-label={`Less ${label}`} onClick={() => set(Math.max(2, (value ?? 0) - 2))}>
           −
         </button>
-        <input className="input" type="number" min={1} max={1024} value={value ?? ""} onChange={(e) => set(Math.max(1, +e.target.value || 1))} aria-label={label} />
+        <input className="input" type="number" min={1} max={1024} step={2} value={value ?? ""} onChange={(e) => set(Math.max(1, +e.target.value || 1))} aria-label={label} />
         <span className="unit">GB</span>
-        <button type="button" aria-label={`More ${label}`} onClick={() => set((value ?? 0) + (value && value >= 16 ? 8 : 2))}>
+        <button type="button" aria-label={`More ${label}`} onClick={() => set((value ?? 0) + 2)}>
           +
         </button>
       </div>
