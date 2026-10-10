@@ -167,7 +167,10 @@ export function IsoViz({ est, machine }: { est: Estimate; machine: MachineProfil
   let lastOverflow = 0;
   const fill = (capBytes: number, capBlocks: number, side: number, partsBytes: [Kind, number][], prefix: string) => {
     lastOverflow = 0;
-    const totalBytes = partsBytes.reduce((a, [, b]) => a + b, 0);
+    const rawTotal = partsBytes.reduce((a, [, b]) => a + b, 0);
+    // Ignore rounding-level overflow (planned placement fills VRAM exactly to its edge).
+    const real = rawTotal - capBytes > Math.max(unit * 0.5, 64 * 1024 * 1024);
+    const totalBytes = real ? rawTotal : Math.min(rawTotal, capBytes);
     const counts: [Kind, number][] = partsBytes.map(([k, b]) => [k, n(b)]);
     let sum = counts.reduce((a, [, c]) => a + c, 0);
     const limit = totalBytes <= capBytes ? capBlocks : Math.max(capBlocks, Math.round(totalBytes / unit));
