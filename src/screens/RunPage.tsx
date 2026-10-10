@@ -165,8 +165,8 @@ export function RunPage() {
             You're viewing a <b>sample machine</b>. Estimates below are for that computer, not yours.
           </span>
           <span className="spacer" />
-          <button className="btn sm primary" onClick={() => useStore.getState().useBrowserHardware()}>
-            Use my computer
+          <button className="btn sm primary" onClick={() => useStore.getState().setSetupOpen(true)}>
+            Switch to my computer
           </button>
         </div>
       )}
@@ -182,7 +182,11 @@ export function RunPage() {
             <div className="muted" style={{ fontSize: 15 }}>
               {hw.os.name} {hw.os.version} · detected {new Date(hw.detectedAt).toLocaleString()} ·{" "}
               {hw.mode === "browser" ? "estimated in your browser (exact readings need the desktop app)" : est0?.pools.mode === "live" ? "using live free-memory readings" : "planning mode (no live readings)"}
-              {hw.mode === "demo" && <span className="badge demo" style={{ marginLeft: 8 }}>Sample machine</span>}
+              {hw.mode === "demo" && (
+                <button className="badge demo" style={{ marginLeft: 8, cursor: "pointer" }} onClick={() => useStore.getState().setSetupOpen(true)}>
+                  Sample machine · change
+                </button>
+              )}
               {(hw.mode == null || hw.mode === "native") && (
                 <button
                   className="badge"
@@ -198,7 +202,7 @@ export function RunPage() {
               )}
               {hw.mode === "browser" && (
                 <button className="badge demo" style={{ marginLeft: 8, cursor: "pointer" }} onClick={() => useStore.getState().setSetupOpen(true)}>
-                  Browser estimate · edit
+                  My computer · edit
                 </button>
               )}
             </div>

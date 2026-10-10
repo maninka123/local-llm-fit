@@ -8,7 +8,7 @@ async function boot(page: Page, state: Record<string, unknown> = {}, hash = "#/r
   // Ollama is not part of these tests: make the local API unreachable quickly.
   await page.route("**/__proxy/ollama-local/**", (r) => r.abort());
   await page.goto("/" + hash);
-  await expect(page.getByText("Sample machine").first()).toBeVisible();
+  await expect(page.locator(".machine-bar")).toContainText("Sample:");
 }
 
 test("overview shows the machine, memory and recommendations", async ({ page }) => {
@@ -154,9 +154,9 @@ test("browser mode: confirm your machine, then estimates use it", async ({ page 
   await card.getByLabel("Which graphics card?").fill("GeForce RTX 4070 Ti SUPER");
   await expect(page.getByText("Known spec: 16 GB of graphics memory.")).toBeVisible();
   await page.getByRole("group", { name: "Memory size" }).getByRole("button", { name: "32 GB" }).click();
-  await page.getByRole("button", { name: "Use these answers" }).click();
+  await page.getByRole("button", { name: "Use my computer" }).click();
   await expect(page.getByRole("heading", { name: "Confirm your machine" })).toBeHidden();
-  await expect(page.getByRole("button", { name: "Browser estimate · edit" }).first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "My computer · edit" }).first()).toBeVisible();
   await expect(page.locator(".machine-bar")).toContainText("16.0 GiB");
 });
 
@@ -206,6 +206,28 @@ test("browser setup: Apple Silicon path offers the chip's real memory options", 
   const mem = card.getByRole("group", { name: "Memory size" });
   await expect(mem.getByRole("button")).toHaveText(["18 GB", "36 GB"]);
   await mem.getByRole("button", { name: "36 GB" }).click();
-  await card.getByRole("button", { name: "Use these answers" }).click();
+  await card.getByRole("button", { name: "Use my computer" }).click();
   await expect(page.locator(".machine-bar")).toContainText("Unified");
+});
+
+test("setup: switch to a sample machine, adjust its memory, and switch back", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("model-fit-explorer", JSON.stringify({ state: { theme: "light", browserSetup: { confirmed: true, gpuName: "Apple M3", vramGiB: null, ramGiB: 16, formFactor: "laptop" } }, version: 2 })));
+  await page.route("**/__proxy/ollama-local/**", (r) => r.abort());
+  await page.goto("/#/run");
+  await page.getByRole("button", { name: "My computer · edit" }).first().click();
+  const dlg = page.getByRole("dialog");
+  await dlg.getByRole("radio", { name: /Sample machine/ }).click();
+  await dlg.getByRole("radio", { name: /Gaming desktop/ }).click();
+  await dlg.getByRole("button", { name: "More System memory (RAM)" }).click();
+  await expect(dlg.getByText("Changed")).toBeVisible();
+  await dlg.getByRole("button", { name: "Show this machine" }).click();
+  await expect(dlg).toBeHidden();
+  await expect(page.getByRole("status")).toContainText("with your changes");
+  await expect(page.locator(".machine-bar")).toContainText("Sample: Gaming desktop");
+  await expect(page.locator(".machine-bar")).toContainText("40.0 GiB");
+  // back to my computer
+  await page.getByRole("button", { name: /Sample: Gaming desktop/ }).click();
+  await page.getByRole("dialog").getByRole("radio", { name: /My computer/ }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Use my computer" }).click();
+  await expect(page.getByRole("button", { name: "My computer · edit" }).first()).toBeVisible();
 });

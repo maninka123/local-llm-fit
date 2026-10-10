@@ -1,6 +1,7 @@
 import { Cpu, HardDrive, Laptop, Monitor, MemoryStick, RefreshCw, Server, CircuitBoard, Boxes } from "lucide-react";
 import { useStore } from "../state/store";
 import { useMachine } from "../state/derived";
+import { DEMO_MACHINES } from "../platform/demoHardware";
 import { fmtBytes } from "../lib/units";
 import type { FormFactor } from "../domain/types";
 
@@ -25,7 +26,7 @@ export function MachineBar() {
   const status = useStore((s) => s.hardwareStatus);
   const o = useStore((s) => s.overrides);
   const rescan = useStore((s) => s.rescanHardware);
-  const useBrowser = useStore((s) => s.useBrowserHardware);
+  const demoName = useStore((s) => DEMO_MACHINES.find((d) => d.id === s.demoId)?.name.split(" · ")[0] ?? "sample");
   const setSetupOpen = useStore((s) => s.setSetupOpen);
   const m = useMachine();
   if (!hw || !m) {
@@ -46,17 +47,18 @@ export function MachineBar() {
     <header className="machine-bar" aria-label="Your machine">
       <div className="inner">
         {hw.mode === "demo" || (hw.demo && hw.mode == null) ? (
-          <button className="badge demo" style={{ cursor: "pointer" }} onClick={useBrowser} title="You're viewing a sample machine. Click to estimate for your own computer.">
-            Sample machine · use mine
+          <button className="badge demo" style={{ cursor: "pointer" }} onClick={() => setSetupOpen(true)} data-tip="You're looking at a sample computer. Click to switch to yours." data-tip-pos="below">
+            Sample: {demoName} · change
           </button>
         ) : hw.mode === "browser" ? (
           <button
             className={`badge ${hw.browserConfirmed ? "demo" : "estimated pulse"}`}
             style={{ cursor: "pointer" }}
             onClick={() => setSetupOpen(true)}
-            title="Estimated from your browser plus known GPU specs. Click to review or edit."
+            data-tip="Estimated in your browser from your answers. Click to review."
+            data-tip-pos="below"
           >
-            {hw.browserConfirmed ? "Browser estimate · edit" : "Confirm your machine"}
+            {hw.browserConfirmed ? "My computer · edit" : "Set up my computer"}
           </button>
         ) : null}
         <span className="chip" title={`${hw.os.name} ${hw.os.version}`}>

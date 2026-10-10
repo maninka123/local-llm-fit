@@ -3090,3 +3090,149 @@ input[type="range"]::-moz-range-thumb {
   width: auto;
   max-width: 100%;
 }
+
+/* ------------------------------------------------------------------ consistent selects + combobox */
+.select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 42px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%236e6e73' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 16px center;
+  background-size: 12px 8px;
+  cursor: pointer;
+}
+[data-theme="dark"] .select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%2398989d' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+.combo {
+  position: relative;
+}
+.combo .input {
+  width: 100%;
+}
+.combo-list {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  border-radius: 14px;
+  background: var(--panel-solid);
+  border: 1px solid var(--border-strong);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06), 0 18px 40px -12px rgba(0, 0, 0, 0.25);
+  max-height: 320px;
+  overflow: auto;
+  animation: pop 160ms var(--ease) both;
+}
+.combo-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 15.5px;
+  cursor: pointer;
+}
+.combo-list li.on {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+}
+.combo-meta {
+  font-size: 13.5px;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+.combo-list li.on .combo-meta {
+  color: var(--accent);
+}
+/* the question being answered sits above the ones after it, so its suggestion list is never covered */
+.setup-step {
+  position: relative;
+}
+.setup-step:focus-within {
+  z-index: 30;
+}
+.setup-step .appear {
+  animation-fill-mode: backwards;
+}
+
+/* ------------------------------------------------------------------ my computer / sample switch */
+.mode-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 14px;
+  background: var(--seg-track);
+  max-width: 460px;
+}
+.mode-switch button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 44px;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 15.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 220ms var(--ease), color 220ms, box-shadow 220ms;
+}
+.mode-switch button.on {
+  background: var(--seg-thumb);
+  color: var(--accent);
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.06), 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+.sample-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 12px;
+}
+
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.stepper .input {
+  width: 96px;
+  text-align: center;
+  font-weight: 650;
+  -moz-appearance: textfield;
+}
+.stepper .input::-webkit-inner-spin-button,
+.stepper .input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+}
+.stepper .unit {
+  color: var(--text-3);
+  font-size: 15px;
+  margin-right: 4px;
+}
+.stepper button {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 0;
+  background: var(--panel-2);
+  color: var(--text);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 160ms, transform 120ms;
+}
+.stepper button:hover {
+  background: color-mix(in srgb, var(--accent) 14%, var(--panel-2));
+  color: var(--accent);
+}
+.stepper button:active {
+  transform: scale(0.92);
+}

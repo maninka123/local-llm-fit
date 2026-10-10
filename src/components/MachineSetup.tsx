@@ -1,9 +1,12 @@
-import { useMemo, useState } from "react";
-import { Apple, CheckCircle2, Cpu, Download, HelpCircle, Laptop, Monitor, Sparkles } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Apple, CheckCircle2, Cpu, Download, FlaskConical, HelpCircle, Laptop, Monitor, Sparkles } from "lucide-react";
 import { useStore } from "../state/store";
-import { suggestSetup, type BrowserSetup } from "../platform/browserDetect";
-import { APPLE_CHIPS, CARD_NAMES, COMMON_RAM_GB, lookupGpu } from "../platform/gpuSpecs";
+import { detectBrowser, suggestSetup, type BrowserSetup } from "../platform/browserDetect";
+import { APPLE_CHIPS, COMMON_RAM_GB, lookupGpu } from "../platform/gpuSpecs";
+import { GpuCombobox } from "./GpuCombobox";
 import { Modal, Seg } from "./ui";
+import { DEMO_MACHINES } from "../platform/demoHardware";
+import { GiB } from "../lib/units";
 
 const RELEASES = "https://github.com/maninka123/local-llm-fit/releases";
 
@@ -11,10 +14,139 @@ const RELEASES = "https://github.com/maninka123/local-llm-fit/releases";
 type GpuChoice = "card" | "apple" | "none";
 
 function SetupForm({ onDone }: { onDone?: () => void }) {
+  const webHardware = useStore((s) => s.webHardware);
+  const [mode, setMode] = useState<"mine" | "sample">(webHardware === "demo" ? "sample" : "mine");
+  const sig = useStore((s) => s.browserSignals);
+  useEffect(() => {
+    // Sample mode skips detection; detect now so "My computer" can be pre-filled.
+    if (!sig) void detectBrowser().then((d) => useStore.setState({ browserSignals: d }));
+  }, [sig]);
+  return (
+    <div className="stack" style={{ gap: 20 }}>
+      <div className="mode-switch" role="radiogroup" aria-label="Which computer">
+        <button type="button" role="radio" aria-checked={mode === "mine"} className={mode === "mine" ? "on" : ""} onClick={() => setMode("mine")}>
+          <Laptop size={18} /> My computer
+        </button>
+        <button type="button" role="radio" aria-checked={mode === "sample"} className={mode === "sample" ? "on" : ""} onClick={() => setMode("sample")}>
+          <FlaskConical size={18} /> Sample machine
+        </button>
+      </div>
+      {mode === "mine" ? <MineForm onDone={onDone} /> : <SamplePicker onDone={onDone} />}
+    </div>
+  );
+}
+
+function SamplePicker({ onDone }: { onDone?: () => void }) {
+  const webHardware = useStore((s) => s.webHardware);
+  const demoId = useStore((s) => s.demoId);
+  const overrides = useStore((s) => s.overrides);
+  const [sel, setSel] = useState(demoId);
+  const sample = DEMO_MACHINES.find((d) => d.id === sel) ?? DEMO_MACHINES[0];
+  const unified = sample.report.memoryArchitecture.value === "unified";
+  const gpu = sample.report.gpus.find((g) => g.kind === "discrete");
+  const baseVram = gpu?.dedicatedBytes.value ? Math.round(gpu.dedicatedBytes.value / GiB) : null;
+  const baseRam = Math.round((sample.report.memory.totalBytes.value ?? 0) / GiB);
+  const keepEdits = webHardware === "demo" && demoId === sel;
+  const [vram, setVram] = useState<number | null>(keepEdits ? (overrides.vramTotalGiB ?? baseVram) : baseVram);
+  const [ram, setRam] = useState<number>(keepEdits ? (overrides.ramTotalGiB ?? baseRam) : baseRam);
+
+  const pick = (id: string) => {
+    setSel(id);
+    const d = DEMO_MACHINES.find((x) => x.id === id)!;
+    const g = d.report.gpus.find((x) => x.kind === "discrete");
+    setVram(g?.dedicatedBytes.value ? Math.round(g.dedicatedBytes.value / GiB) : null);
+    setRam(Math.round((d.report.memory.totalBytes.value ?? 0) / GiB));
+  };
+
+  const apply = () => {
+    const st = useStore.getState();
+    st.setDemo(sel); // resets overrides, then we apply only what the user changed
+    const o: Partial<typeof overrides> = {};
+    if (ram !== baseRam) {
+      o.ramTotalGiB = ram;
+      o.ramFreeGiB = Math.round(ram * 0.7 * 10) / 10; // assume a typical 30% already in use
+    }
+    if (!unified && vram != null && vram !== baseVram) {
+      o.vramTotalGiB = vram;
+      o.vramFreeGiB = Math.round(vram * 0.95 * 10) / 10;
+    }
+    if (Object.keys(o).length) st.setOverrides(o);
+    st.setSetupOpen(false);
+    onDone?.();
+    st.showToast(`Now showing the sample: ${sample.name.split(" · ")[0]}${Object.keys(o).length ? " (with your changes)" : ""}`, "info");
+  };
+
+  const numberField = (label: string, value: number | null, set: (v: number) => void, hint: string, changed: boolean) => (
+    <label className="field">
+      <span className="row" style={{ justifyContent: "space-between" }}>
+        {label}
+        {changed && <span className="src-tag manual">Changed</span>}
+      </span>
+      <div className="stepper">
+        <button type="button" aria-label={`Less ${label}`} onClick={() => set(Math.max(1, (value ?? 0) - (value && value > 16 ? 8 : 2)))}>
+          −
+        </button>
+        <input className="input" type="number" min={1} max={1024} value={value ?? ""} onChange={(e) => set(Math.max(1, +e.target.value || 1))} aria-label={label} />
+        <span className="unit">GB</span>
+        <button type="button" aria-label={`More ${label}`} onClick={() => set((value ?? 0) + (value && value >= 16 ? 8 : 2))}>
+          +
+        </button>
+      </div>
+      <span className="field-hint">{hint}</span>
+    </label>
+  );
+
+  return (
+    <div className="stack appear" style={{ gap: 16 }}>
+      <p className="muted" style={{ margin: 0, fontSize: 15 }}>
+        Pick a ready-made computer, then adjust it if you like. Your own answers are kept for when you switch back.
+      </p>
+      <div className="sample-grid" role="radiogroup" aria-label="Sample machines">
+        {DEMO_MACHINES.map((d) => {
+          const ff = d.report.formFactor.value;
+          return (
+            <button key={d.id} type="button" role="radio" aria-checked={sel === d.id} className={`choice-card ${sel === d.id ? "on" : ""}`} onClick={() => pick(d.id)}>
+              <span className="choice-icon">{ff === "laptop" ? <Laptop size={22} /> : <Monitor size={22} />}</span>
+              <span className="choice-title">{d.name.split(" · ")[0]}</span>
+              <span className="choice-sub">{d.name.split(" · ").slice(1).join(" · ")}</span>
+              <CheckCircle2 size={18} className="choice-check" aria-hidden />
+            </button>
+          );
+        })}
+      </div>
+      <div className="setup-step sample-edit appear" key={sel}>
+        <div className="setup-q">
+          <span className="step-num">✎</span> Adjust this sample (optional)
+        </div>
+        <div className="grid cols-2" style={{ gap: 16 }}>
+          {unified
+            ? numberField("Unified memory", ram, setRam, "Shared by the CPU and GPU.", ram !== baseRam)
+            : (
+              <>
+                {gpu && numberField("Graphics memory (VRAM)", vram, (v) => setVram(v), gpu.name, vram !== baseVram)}
+                {numberField("System memory (RAM)", ram, setRam, sample.report.cpu.brand, ram !== baseRam)}
+              </>
+            )}
+        </div>
+      </div>
+      <div className="row">
+        <button className="btn primary" onClick={apply}>
+          <CheckCircle2 size={16} /> Show this machine
+        </button>
+        {(ram !== baseRam || vram !== baseVram) && (
+          <button className="btn ghost" onClick={() => pick(sel)}>
+            Reset values
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function MineForm({ onDone }: { onDone?: () => void }) {
   const sig = useStore((s) => s.browserSignals);
   const saved = useStore((s) => s.browserSetup);
   const save = useStore((s) => s.saveBrowserSetup);
-  const setDemo = useStore((s) => s.setDemo);
   const initial = useMemo<BrowserSetup>(() => saved ?? (sig ? suggestSetup(sig) : { confirmed: false, gpuName: null, vramGiB: null, ramGiB: null, formFactor: null }), [saved, sig]);
   const initialSpec = lookupGpu(initial.gpuName);
   const [choice, setChoice] = useState<GpuChoice>(initialSpec?.kind === "unified" ? "apple" : initialSpec?.kind === "discrete" || (initial.gpuName && initial.vramGiB) ? "card" : "none");
@@ -59,7 +191,7 @@ function SetupForm({ onDone }: { onDone?: () => void }) {
   ];
 
   return (
-    <div className="stack" style={{ gap: 20 }}>
+    <div className="stack appear" style={{ gap: 20 }}>
       <div className="setup-detected">
         <div className="eyebrow">Detected by your browser</div>
         <div className="row" style={{ gap: 18, marginTop: 6 }}>
@@ -99,12 +231,7 @@ function SetupForm({ onDone }: { onDone?: () => void }) {
           <div className="grid cols-2 appear" style={{ gap: 16, marginTop: 14 }} key="card">
             <div className="field">
               <label htmlFor="setup-gpu">Which graphics card?</label>
-              <input id="setup-gpu" className="input" list="known-cards" value={cardName} placeholder="Start typing, e.g. RTX 4070" onChange={(e) => pickCard(e.target.value)} />
-              <datalist id="known-cards">
-                {CARD_NAMES.map((n) => (
-                  <option key={n} value={n} />
-                ))}
-              </datalist>
+              <GpuCombobox id="setup-gpu" value={cardName} onChange={pickCard} placeholder="Start typing, e.g. RTX 4070" />
               <span className="field-hint">
                 {cardSpec?.vramGiB ? `Known spec: ${cardSpec.vramGiB.join(" or ")} GB of graphics memory.` : cardName ? "Not in our list: enter its memory on the right." : sig?.os.name === "Windows" ? "Find it in Task Manager → Performance → GPU." : ""}
               </span>
@@ -172,11 +299,9 @@ function SetupForm({ onDone }: { onDone?: () => void }) {
 
       <div className="row">
         <button className="btn primary" disabled={!ready} onClick={submit}>
-          <CheckCircle2 size={16} /> Use these answers
+          <CheckCircle2 size={16} /> Use my computer
         </button>
-        <button className="btn ghost" onClick={() => setDemo(useStore.getState().demoId)}>
-          Try a sample machine instead
-        </button>
+
         <span className="spacer" />
         <a className="btn ghost sm" href={RELEASES} target="_blank" rel="noreferrer noopener">
           <Download size={14} /> Exact readings: desktop app
