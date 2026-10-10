@@ -12,10 +12,15 @@ interface Shot {
   /** CSS selector to crop to (a card), or undefined for the viewport. */
   clip?: string;
   scrollTo?: string;
+  /** Button to click before the capture (e.g. a Playground preset). */
+  click?: string;
+  /** Wider window for this capture. */
+  wide?: boolean;
 }
 
 const shots: Shot[] = [
-  { name: "playground", hash: "#/overview", state: { demoId: "desktop-16g", webHardware: "demo", theme: "light" }, clip: ".playground" },
+  { name: "playground", hash: "#/overview", state: { demoId: "desktop-16g", webHardware: "demo", theme: "light" }, clip: ".playground", click: "MoE 30B · 3B active", wide: true },
+  { name: "playground-dark", hash: "#/overview", state: { demoId: "mac-m3pro-36", webHardware: "demo", theme: "dark" }, clip: ".playground", click: "Medium 14B", wide: true },
   { name: "overview", hash: "#/run", state: { demoId: "desktop-16g", webHardware: "demo", theme: "light" } },
   { name: "dark", hash: "#/run", state: { demoId: "desktop-16g", webHardware: "demo", theme: "dark" } },
   { name: "what-can-i-run", hash: "#/run", state: { demoId: "desktop-16g", webHardware: "demo", theme: "light" }, clip: "section[aria-labelledby='run-title']" },
@@ -31,9 +36,14 @@ for (const s of shots) {
   test(`docs: ${s.name}`, async ({ page }) => {
     await page.addInitScript((st) => localStorage.setItem("model-fit-explorer", JSON.stringify({ state: { motion: "reduce", ...st }, version: 2 })), s.state);
     await page.route("**/__proxy/ollama-local/**", (r) => r.abort());
+    if (s.wide) await page.setViewportSize({ width: 1500, height: 900 });
     await page.goto("/" + s.hash);
     await page.addStyleTag({ content: ".machine-bar{position:static!important}" });
     await page.waitForTimeout(1500);
+    if (s.click) {
+      await page.getByRole("button", { name: s.click }).click();
+      await page.waitForTimeout(900);
+    }
     if (s.clip) {
       const el = page.locator(s.clip).first();
       await el.scrollIntoViewIfNeeded();

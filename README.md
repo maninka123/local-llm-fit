@@ -4,6 +4,8 @@
 
 **[▶ Try it in your browser](https://maninka123.github.io/local-llm-fit/)** · **[Download the desktop app](https://github.com/maninka123/local-llm-fit/releases/latest)**
 
+> **Tip:** Browsers hide exact hardware details, so the web version estimates your machine and may not get every spec right. For exact, live readings, use the desktop app. It's a tiny download (about 2–3 MB on Windows and Mac).
+
 ![Playground: build a model and see where it fits](docs/screenshots/playground.png)
 
 ## What it does

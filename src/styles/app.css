@@ -2482,17 +2482,7 @@ label.field {
   background: var(--seg-active);
   box-shadow: 0 0 6px var(--seg-active);
 }
-@media (max-width: 1100px) {
-  .iso-row,
-  .iso-col-wrap {
-    flex-direction: column;
-    align-items: center;
-  }
-  .iso-arrow {
-    padding-bottom: 0;
-    transform: rotate(0);
-  }
-}
+
 .reduce-motion .flow-dots i {
   display: none;
 }
@@ -2789,29 +2779,44 @@ input[type="range"]::-moz-range-thumb {
   overflow-x: visible;
 }
 @container (max-width: 860px) {
-  .iso-row {
-    --iso-s: 0.82;
-  }
   .iso-arrow {
     width: 70px;
   }
 }
 @container (max-width: 720px) {
-  .iso-row {
-    --iso-s: 0.68;
-  }
   .iso-arrow {
     width: 56px;
     font-size: 12.5px;
   }
 }
-@container (max-width: 560px) {
+@container (max-width: 600px) {
+  .iso-arrow {
+    width: 48px;
+    font-size: 12px;
+  }
+  .iso-hint {
+    display: none;
+  }
+}
+@container (max-width: 430px) {
   .iso-row,
   .iso-col-wrap {
     flex-direction: column;
     align-items: center;
   }
   .iso-row {
-    --iso-s: 0.9;
+    --iso-s: 0.9 !important;
   }
+}
+
+.iso-col,
+.iso-col.model {
+  min-width: 0;
+}
+.iso-col-wrap {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.iso-row {
+  justify-content: space-between;
 }

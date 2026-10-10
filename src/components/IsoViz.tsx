@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Estimate, MachineProfile } from "../domain/estimator";
 import { fmtBytes, GiB } from "../lib/units";
 
@@ -207,11 +207,28 @@ export function IsoViz({ est, machine }: { est: Estimate; machine: MachineProfil
   }
 
   const offload = pl ? pl.cpuWeights : 0;
+
+  // Fit everything on one row: measure the space and scale all drawings by the same factor.
+  const ref = useRef<HTMLDivElement>(null);
+  const [avail, setAvail] = useState(0);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([e]) => setAvail(e.contentRect.width));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const drawW = (side: number) => 2 * side * U * C + 20;
+  const COL_MIN = 150; // room for the column titles
+  const ARROW = 92;
+  const natural =
+    Math.max(drawW(cubeSide), COL_MIN) + containers.reduce((a, c) => a + Math.max(drawW(c.side), COL_MIN), 0) + ARROW * containers.length + 8 * containers.length * 2;
+  const scale = avail > 0 ? Math.max(0.42, Math.min(1, avail / natural)) : 1;
   const overflow = containers.some((c) => c.blocks.some((b) => b.kind === "over"));
 
   return (
-    <div className="isoviz">
-      <div className="iso-row">
+    <div className="isoviz" ref={ref}>
+      <div className="iso-row" style={{ ["--iso-s" as string]: scale.toFixed(3) }}>
         <div className="iso-col model">
           <div className="iso-title">The model</div>
           <ModelCube blocks={modelBlocks} activeKeys={activeKeys} label={`Model weights ${fmtBytes(W)}`} />
