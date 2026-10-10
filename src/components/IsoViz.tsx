@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Estimate, MachineProfile } from "../domain/estimator";
 import { fmtBytes, GiB } from "../lib/units";
 
@@ -219,16 +219,28 @@ export function IsoViz({ est, machine }: { est: Estimate; machine: MachineProfil
     return () => ro.disconnect();
   }, []);
   const drawW = (side: number) => 2 * side * U * C + 20;
-  const COL_MIN = 150; // room for the column titles
-  const ARROW = 92;
+  const COL_MIN = 190; // captions wrap within this width (see .iso-col max-width)
+  const ARROW = 72;
   const natural =
-    Math.max(drawW(cubeSide), COL_MIN) + containers.reduce((a, c) => a + Math.max(drawW(c.side), COL_MIN), 0) + ARROW * containers.length + 8 * containers.length * 2;
-  const scale = avail > 0 ? Math.max(0.42, Math.min(1, avail / natural)) : 1;
+    Math.max(drawW(cubeSide), COL_MIN) + containers.reduce((a, c) => a + Math.max(drawW(c.side), COL_MIN), 0) + ARROW * containers.length + 8 * containers.length * 2 + 8;
+  const estimateScale = avail > 0 ? Math.max(0.4, Math.min(1, avail / natural)) : 1;
+  // Correct the estimate against the real layout: shrink until nothing overflows.
+  const rowRef = useRef<HTMLDivElement>(null);
+  const [correction, setCorrection] = useState(1);
+  useEffect(() => setCorrection(1), [estimateScale, natural]);
+  useLayoutEffect(() => {
+    const row = rowRef.current;
+    if (!row) return;
+    if (row.scrollWidth > row.clientWidth + 1 && estimateScale * correction > 0.4) {
+      setCorrection((c) => Math.max(0.4 / estimateScale, c * (row.clientWidth / row.scrollWidth) * 0.97));
+    }
+  });
+  const scale = Math.max(0.4, estimateScale * correction);
   const overflow = containers.some((c) => c.blocks.some((b) => b.kind === "over"));
 
   return (
     <div className="isoviz" ref={ref}>
-      <div className="iso-row" style={{ ["--iso-s" as string]: scale.toFixed(3) }}>
+      <div className="iso-row" ref={rowRef} style={{ ["--iso-s" as string]: scale.toFixed(3) }}>
         <div className="iso-col model">
           <div className="iso-title">The model</div>
           <ModelCube blocks={modelBlocks} activeKeys={activeKeys} label={`Model weights ${fmtBytes(W)}`} />
@@ -252,7 +264,7 @@ export function IsoViz({ est, machine }: { est: Estimate; machine: MachineProfil
           <span>loads into</span>
         </div>
         {containers.map((c, i) => (
-          <div key={c.title} className="iso-col-wrap">
+          <Fragment key={c.title}>
             {i > 0 && (
               <div className={`iso-arrow ${offload > 0 ? "offload" : "idle"}`} aria-hidden>
                 {offload > 0 ? (
@@ -274,7 +286,7 @@ export function IsoViz({ est, machine }: { est: Estimate; machine: MachineProfil
               <Container side={c.side} levels={c.levels} blocks={c.blocks} limitLevel={c.limitLevel} label={`${c.title}: ${c.sub}`} />
               <div className="iso-sub">{c.sub}</div>
             </div>
-          </div>
+          </Fragment>
         ))}
       </div>
       <div className="legend iso-legend">

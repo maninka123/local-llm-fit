@@ -2820,3 +2820,273 @@ input[type="range"]::-moz-range-thumb {
 .iso-row {
   justify-content: space-between;
 }
+
+/* ------------------------------------------------------------------ real models like this */
+.similar-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+.similar-card {
+  position: relative;
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  padding: 18px 16px 16px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--panel);
+  box-shadow: var(--shadow-sm);
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  animation: rise 420ms var(--ease) both;
+  transition: transform 200ms var(--ease), box-shadow 200ms, border-color 200ms;
+}
+.similar-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 4px;
+  background: var(--tone);
+  transition: background 300ms;
+}
+.similar-card:hover {
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--tone) 45%, var(--border));
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06), 0 16px 36px -14px color-mix(in srgb, var(--tone) 45%, transparent);
+}
+.similar-card:active {
+  transform: translateY(-1px) scale(0.99);
+}
+.similar-card.ghost {
+  cursor: default;
+  display: grid;
+  place-items: center;
+  color: var(--text-3);
+  font-size: 14.5px;
+  border-style: dashed;
+  background: transparent;
+  box-shadow: none;
+  min-height: 140px;
+}
+.similar-card.ghost::before {
+  display: none;
+}
+.similar-rank {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-3);
+}
+.bucket-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  justify-self: start;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 980px;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--tone);
+  background: color-mix(in srgb, var(--tone) 13%, transparent);
+  border: 1px solid color-mix(in srgb, var(--tone) 30%, transparent);
+  transition: color 300ms, background 300ms;
+}
+.similar-empty {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  padding: 22px;
+  border-radius: 16px;
+  border: 1px dashed var(--border-strong);
+  color: var(--text-2);
+}
+.similar-empty svg {
+  flex: none;
+  color: var(--text-3);
+}
+@media (max-width: 1100px) {
+  .similar-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.similar-card.ghost {
+  gap: 10px;
+  text-align: center;
+  align-content: center;
+  line-height: 1.45;
+}
+.similar-card > .row {
+  padding-right: 30px;
+}
+.similar-card .mname {
+  overflow-wrap: anywhere;
+}
+
+/* Drawings keep their natural size; arrows share the free space equally, so each
+   arrow sits exactly midway between the two drawings it connects. */
+.iso-row {
+  justify-content: center;
+  align-items: flex-end;
+}
+.iso-row > .iso-col,
+.iso-row > .iso-col.model {
+  flex: 0 0 auto;
+  min-width: 150px;
+}
+.iso-row > .iso-arrow {
+  flex: 1 1 0;
+  width: auto;
+  min-width: 56px;
+  max-width: 220px;
+}
+.iso-row > .iso-arrow .flow-dots {
+  width: min(100%, 96px);
+}
+@keyframes flow-x {
+  from {
+    left: 0;
+    opacity: 0;
+  }
+  20%,
+  80% {
+    opacity: 1;
+  }
+  to {
+    left: calc(100% - 8px);
+    opacity: 0;
+  }
+}
+
+.iso-row > .iso-col,
+.iso-row > .iso-col.model {
+  min-width: 0;
+  max-width: max(190px, calc(var(--iso-s, 1) * 260px));
+}
+.iso-sub,
+.iso-hint {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.isoviz {
+  overflow: hidden;
+}
+
+.iso-row > .iso-col,
+.iso-row > .iso-col.model {
+  max-width: max(124px, calc(var(--iso-s, 1) * 240px));
+}
+.iso-row > .iso-arrow {
+  min-width: 44px;
+}
+.iso-title {
+  overflow-wrap: anywhere;
+}
+
+/* ------------------------------------------------------------------ setup: guided questions */
+.setup-step {
+  display: grid;
+  gap: 10px;
+}
+.setup-q {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 17px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+.step-num {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--accent-ink);
+  background: var(--accent);
+  flex: none;
+}
+.choice-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.choice-card {
+  position: relative;
+  display: grid;
+  justify-items: start;
+  gap: 4px;
+  padding: 16px;
+  text-align: left;
+  border-radius: 16px;
+  border: 1.5px solid var(--border);
+  background: var(--panel);
+  cursor: pointer;
+  transition: border-color 200ms, background 200ms, transform 160ms var(--ease), box-shadow 200ms;
+}
+.choice-card:hover {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+  transform: translateY(-1px);
+}
+.choice-card:active {
+  transform: scale(0.98);
+}
+.choice-card.on {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 7%, var(--panel));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+.choice-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 6px;
+  color: var(--text-2);
+  background: var(--panel-2);
+  transition: color 200ms, background 200ms;
+}
+.choice-card.on .choice-icon {
+  color: var(--accent-ink);
+  background: var(--accent);
+}
+.choice-title {
+  font-size: 16px;
+  font-weight: 650;
+}
+.choice-sub {
+  font-size: 13.5px;
+  color: var(--text-3);
+}
+.choice-check {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  color: var(--accent);
+  opacity: 0;
+  transform: scale(0.6);
+  transition: opacity 200ms, transform 260ms cubic-bezier(0.34, 1.5, 0.5, 1);
+}
+.choice-card.on .choice-check {
+  opacity: 1;
+  transform: scale(1);
+}
+@media (max-width: 760px) {
+  .choice-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.setup-step > .seg,
+.field > .seg {
+  justify-self: start;
+  width: auto;
+  max-width: 100%;
+}

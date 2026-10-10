@@ -10,7 +10,7 @@ import { fmtBytes, fmtParams, fmtTokens } from "../lib/units";
 import { AnimatedBytes, ConfidenceMeter, FitPill, Seg, TONE_VAR } from "../components/ui";
 import { IsoViz } from "../components/IsoViz";
 import { MachineSetupCard } from "../components/MachineSetup";
-import { useExplorer } from "./Explorer";
+import { SimilarModels } from "../components/SimilarModels";
 
 // Interactive "build a model" playground: drag sizes, pick precision/context/inputs,
 // and watch the model's memory blocks settle into VRAM and RAM.
@@ -80,19 +80,14 @@ export function Playground() {
   const [p, setP] = useState<Params>({ kind: "dense", totalB: 8, activeB: 3, quant: "Q4_K_M", ctx: 8192, images: 0, sessions: 1 });
   const set = (q: Partial<Params>) => setP((cur) => ({ ...cur, ...q, activeB: Math.min(q.activeB ?? cur.activeB, q.totalB ?? cur.totalB) }));
 
+  const runSettings = useMemo(() => ({ ...settings, contextTokens: p.ctx, parallel: p.sessions, imageCount: p.images, imageResolution: 896 }), [settings, p.ctx, p.sessions, p.images]);
   const est = useMemo(() => {
     if (!machine) return null;
-    return estimate(customModel(p), { ...settings, quant: p.quant, contextTokens: p.ctx, parallel: p.sessions, imageCount: p.images, imageResolution: 896 }, machine);
-  }, [p, settings, machine]);
+    return estimate(customModel(p), { ...runSettings, quant: p.quant }, machine);
+  }, [p, runSettings, machine]);
 
   if (!hw || !machine || !est) return <div className="card" style={{ marginTop: 24 }}>Detecting hardware…</div>;
 
-  const showRealModels = () => {
-    const t = p.totalB;
-    const size = t < 3 ? "xs" : t < 9.5 ? "s" : t < 20.5 ? "m" : t < 40.5 ? "l" : t < 80.5 ? "xl" : "xxl";
-    useExplorer.getState().set({ size, arch: p.kind, buckets: [] });
-    navigate({ page: "explore" });
-  };
 
   return (
     <div className="grid" style={{ gap: 18 }}>
@@ -259,16 +254,10 @@ export function Playground() {
             <IsoViz est={est} machine={machine} />
           </section>
 
-          <section className="card tight row">
-            <Sparkles size={18} color="var(--accent)" />
-            <span className="muted" style={{ fontSize: 15 }}>
-              Sizes here are estimates for a typical model of this shape ({fmtBytes(est.weights?.mid ?? 0, "GB")} of weights). Real models vary.
-            </span>
-            <span className="spacer" />
-            <button className="btn sm" onClick={showRealModels}>
-              See real models like this <ArrowRight size={14} />
-            </button>
-          </section>
+          <SimilarModels shape={{ kind: p.kind, totalB: p.totalB, activeB: Math.min(p.activeB, p.totalB), quant: p.quant, images: p.images }} settings={runSettings} />
+          <p className="faint" style={{ fontSize: 13.5, margin: "-4px 4px 0" }}>
+            <Sparkles size={13} style={{ verticalAlign: -2 }} /> The blocks above are estimates for a typical model of this shape ({fmtBytes(est.weights?.mid ?? 0, "GB")} of weights). Real models vary; their cards use real file sizes.
+          </p>
         </div>
       </div>
     </div>

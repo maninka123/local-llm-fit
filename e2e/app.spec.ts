@@ -149,11 +149,12 @@ test("browser mode: confirm your machine, then estimates use it", async ({ page 
   await page.route("**/__proxy/ollama-local/**", (r) => r.abort());
   await page.goto("/#/run");
   await expect(page.getByRole("heading", { name: "Confirm your machine" })).toBeVisible();
-  await page.locator(".setup-card").getByLabel("No separate graphics card / not sure").uncheck();
-  await page.locator(".setup-card").getByPlaceholder("e.g. GeForce RTX 4070").fill("GeForce RTX 4070 Ti SUPER");
+  const card = page.locator(".setup-card");
+  await card.getByRole("radio", { name: /Graphics card/ }).click();
+  await card.getByLabel("Which graphics card?").fill("GeForce RTX 4070 Ti SUPER");
   await expect(page.getByText("Known spec: 16 GB of graphics memory.")).toBeVisible();
   await page.getByRole("group", { name: "Memory size" }).getByRole("button", { name: "32 GB" }).click();
-  await page.getByRole("button", { name: "Use these values" }).click();
+  await page.getByRole("button", { name: "Use these answers" }).click();
   await expect(page.getByRole("heading", { name: "Confirm your machine" })).toBeHidden();
   await expect(page.getByRole("button", { name: "Browser estimate · edit" }).first()).toBeVisible();
   await expect(page.locator(".machine-bar")).toContainText("16.0 GiB");
@@ -183,4 +184,28 @@ test("playground: presets resize the model and the verdict updates", async ({ pa
   await page.getByRole("button", { name: "MoE 30B · 3B active" }).click();
   await expect(page.locator(".control-label", { hasText: "Active per word" })).toBeVisible();
   await expect(page.locator(".vox.lit").first()).toBeVisible();
+});
+
+test("playground: real models like this follow the selection, with coloured status", async ({ page }) => {
+  await boot(page, {}, "#/overview");
+  const box = page.locator("section[aria-labelledby='similar-title']");
+  await page.getByRole("button", { name: "MoE 30B · 3B active" }).click();
+  await expect(box.locator(".similar-card .mname").first()).toBeVisible();
+  await expect(box.locator(".bucket-badge").first()).toBeVisible();
+  await page.getByRole("button", { name: "Small 8B" }).click();
+  await expect(box).toContainText("dense models around 8B");
+});
+
+test("browser setup: Apple Silicon path offers the chip's real memory options", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("model-fit-explorer", JSON.stringify({ state: { theme: "light" }, version: 2 })));
+  await page.route("**/__proxy/ollama-local/**", (r) => r.abort());
+  await page.goto("/#/run");
+  const card = page.locator(".setup-card");
+  await card.getByRole("radio", { name: /Apple Silicon/ }).click();
+  await card.getByLabel("Which chip?").selectOption("Apple M3 Pro");
+  const mem = card.getByRole("group", { name: "Memory size" });
+  await expect(mem.getByRole("button")).toHaveText(["18 GB", "36 GB"]);
+  await mem.getByRole("button", { name: "36 GB" }).click();
+  await card.getByRole("button", { name: "Use these answers" }).click();
+  await expect(page.locator(".machine-bar")).toContainText("Unified");
 });

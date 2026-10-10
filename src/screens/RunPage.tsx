@@ -7,12 +7,13 @@ import { DEFAULT_SETTINGS, estimate, RESPONSIVENESS_TEXT, type Estimate, type Ma
 import { quantInfo } from "../domain/quant";
 import type { ModelVariant } from "../domain/types";
 import { fmtBytes, fmtParams, GiB } from "../lib/units";
-import { FitPill, Avatar, Switch, AnimatedBytes, Seg } from "../components/ui";
+import { Avatar, Switch, AnimatedBytes, Seg } from "../components/ui";
 import { InputPicker, CapabilityStrip } from "../components/Capabilities";
 import { FORM_LABEL, FormIcon } from "../components/MachineBar";
 import { useExplorer } from "./Explorer";
 import { BUCKETS, bucketOf, recommend, type Bucket, type Recommendation } from "../domain/recommend";
 import { MachineSetupCard } from "../components/MachineSetup";
+import { BucketBadge } from "../components/SimilarModels";
 
 
 function Spec({ label, value, sub, manual, tip }: { label: string; value: React.ReactNode; sub?: React.ReactNode; manual?: boolean; tip?: string }) {
@@ -420,7 +421,7 @@ function PickList({ title, items, empty, note }: { title: string; items: { m: Mo
                 {m.activeParamsB.value ? ` · ${fmtParams(m.activeParamsB.value)} active` : ""} · {e.weights ? fmtBytes(e.weights.mid, "GB") : "size ?"} · {RESPONSIVENESS_TEXT[e.responsiveness]}
               </div>
             </div>
-            <FitPill cls={e.classification} short />
+            <BucketBadge bucket={bucketOf(e.classification)} />
           </div>
           <CapabilityStrip caps={m.capabilities} />
           {r.reasons.length > 0 && <div className="why-line">{r.reasons.slice(0, 3).join(" · ")}</div>}

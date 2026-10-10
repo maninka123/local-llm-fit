@@ -220,3 +220,9 @@ export const KNOWN_GPU_NAMES: string[] = [
   ...APPLE.map(([, name]) => name),
   ...[...NVIDIA, ...NVIDIA_LAPTOP, ...AMD, ...INTEL].map(([, s]) => s.name),
 ];
+
+/** Apple Silicon chips (newest first) with their unified-memory options. */
+export const APPLE_CHIPS: { name: string; options: number[] }[] = [...APPLE].reverse().map(([, name, options]) => ({ name, options }));
+
+/** Graphics cards (non-Apple) for autocomplete. */
+export const CARD_NAMES: string[] = [...NVIDIA, ...NVIDIA_LAPTOP, ...AMD, ...INTEL].map(([, s]) => s.name);

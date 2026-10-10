@@ -10,6 +10,7 @@ import type { ModelVariant, UseCase } from "../domain/types";
 import { fmtBytes, fmtParams } from "../lib/units";
 import { Avatar, FitPill, Seg, Switch, TONE_VAR, Empty } from "../components/ui";
 import { CapabilityLegend, CapabilityStrip, InputPicker } from "../components/Capabilities";
+import { BucketBadge } from "../components/SimilarModels";
 
 const CAP_FILTERS: { k: CapFilter; label: string }[] = [
   { k: "text_only", label: "Text only" },
@@ -389,7 +390,7 @@ export function ModelCard({ m, e, rec, rank }: { m: ModelVariant; e: Estimate; r
       )}
       <div className="mcard-foot">
         <div className="row" style={{ gap: 8 }}>
-          <FitPill cls={e.classification} short cloud={m.cloudOnly} />
+          {m.cloudOnly ? <FitPill cls={e.classification} short cloud /> : <BucketBadge bucket={bucketOf(e.classification)} />}
           <span className="faint" style={{ fontSize: 13.5 }}>
             {bench?.generationTokPerSec ? (
               <b style={{ color: "var(--good)" }}>Measured {bench.generationTokPerSec.toFixed(0)} tok/s here</b>
