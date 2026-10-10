@@ -224,7 +224,7 @@ test("setup: switch to a sample machine, adjust its memory, and switch back", as
   await expect(dlg).toBeHidden();
   await expect(page.getByRole("status")).toContainText("with your changes");
   await expect(page.locator(".machine-bar")).toContainText("Sample: Gaming desktop");
-  await expect(page.locator(".machine-bar")).toContainText("34.0 GiB"); // 32 GB + one 2 GB step
+  await expect(page.locator(".machine-bar")).toContainText("33.0 GiB"); // 32 GB + one 1 GB step
   // back to my computer
   await page.getByRole("button", { name: /Sample: Gaming desktop/ }).click();
   await page.getByRole("dialog").getByRole("radio", { name: /My computer/ }).click();
