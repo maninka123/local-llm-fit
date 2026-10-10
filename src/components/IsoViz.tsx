@@ -353,18 +353,18 @@ export function IsoViz({ est, machine }: { est: Estimate; machine: MachineProfil
       {tooBig && (
         <div className="work-row">
           <span className="work-pill" style={{ ["--tone" as string]: "var(--bad)" }}>
-            <XCircle size={14} /> Too big: needs {fmtBytes(need)} · this computer has {fmtBytes(machineTotal)}
+            <XCircle size={14} /> Needs {fmtBytes(need, "GiB", 0)} · has {fmtBytes(machineTotal, "GiB", 0)}
           </span>
         </div>
       )}
       {constrained && freeNeeded > 0 && (
         <div className="work-row">
           <span className="work-pill" style={{ ["--tone" as string]: "var(--orange)" }}>
-            <AlertTriangle size={14} /> {p.ramFree != null ? `Close apps to free ${fmtBytes(freeNeeded)}` : `Uses ${fmtBytes(freeNeeded)} of the system's safety margin`}
+            <AlertTriangle size={14} /> {p.ramFree != null ? `Close apps · free ${fmtBytes(freeNeeded)}` : `${fmtBytes(freeNeeded)} over the safe limit`}
           </span>
           {p.ramFree != null && (
             <button className="btn sm" onClick={() => useStore.getState().setSettings({ memoryBasis: "planning" })}>
-              What if I close apps?
+              Try with apps closed
             </button>
           )}
         </div>
@@ -420,7 +420,7 @@ export function IsoViz({ est, machine }: { est: Estimate; machine: MachineProfil
         )}
         {[...containerLit.values()].includes("slow") && (
           <span>
-            <i className="sw lit-slow-sw" /> Active, read from RAM
+            <i className="sw lit-slow-sw" /> Active (RAM)
           </span>
         )}
         <span className="faint">1 block ≈ {fmtBytes(unit)} · planned placement, not measured</span>
