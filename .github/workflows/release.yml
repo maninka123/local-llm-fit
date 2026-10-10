@@ -31,6 +31,17 @@ jobs:
         if: matrix.platform == 'ubuntu-22.04'
         run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libayatana-appindicator3-dev patchelf
       - run: npm ci
+      - name: Release notes (download guide)
+        id: notes
+        shell: bash
+        run: |
+          {
+            echo "body<<NOTES_EOF"
+            echo "Model Fit Explorer ${GITHUB_REF_NAME#v}. Installed apps update automatically."
+            echo
+            sed "s/<version>/${GITHUB_REF_NAME#v}/g" docs/RELEASE_ASSETS.md
+            echo "NOTES_EOF"
+          } >> "$GITHUB_OUTPUT"
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -40,7 +51,7 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: Model Fit Explorer ${{ github.ref_name }}
-          releaseBody: Desktop builds for Windows, macOS and Linux. Installed apps update automatically. Installers are not code-signed; see README for first-launch notes.
+          releaseBody: ${{ steps.notes.outputs.body }}
           # Published (not draft) so installed apps can find latest.json for auto-update.
           releaseDraft: false
           includeUpdaterJson: true

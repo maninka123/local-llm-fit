@@ -124,7 +124,7 @@ export function UpdateDialog() {
                 </div>
               </div>
             </div>
-            {u.update.body && <div className="release-notes">{u.update.body}</div>}
+            {u.update.body && <div className="release-notes">{u.update.body.split(/\n## Which file/)[0].trim()}</div>}
             {busy && (
               <div className="stack" style={{ gap: 8 }}>
                 <div className="progress big" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(pct)}>

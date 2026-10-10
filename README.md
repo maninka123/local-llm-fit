@@ -29,7 +29,7 @@
 
 ## Install
 
-Download from [Releases](https://github.com/maninka123/local-llm-fit/releases/latest): `.dmg` (macOS), `.msi` / `-setup.exe` (Windows), `.AppImage` / `.deb` / `.rpm` (Linux). The installers are not code-signed yet: on macOS right-click the app → **Open** the first time; on Windows choose **More info → Run anyway**.
+Download from [Releases](https://github.com/maninka123/local-llm-fit/releases/latest). Not sure which file? See **[which file to download](docs/RELEASE_ASSETS.md)**. In short: Windows `…x64-setup.exe`, Mac `…aarch64.dmg` (Apple Silicon) or `…x64.dmg` (Intel), Linux `…AppImage`. The installers are not code-signed yet: on macOS right-click the app → **Open** the first time; on Windows choose **More info → Run anyway**.
 
 The app checks GitHub for new versions on launch and shows an update dialog with progress; it can also be checked from **Settings → Updates**. On Linux, auto-update applies to the AppImage; `.deb`/`.rpm` installs update through your package manager.
 
