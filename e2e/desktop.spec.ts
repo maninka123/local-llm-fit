@@ -23,16 +23,21 @@ test("desktop: edit detected values, try a sample machine, switch back", async (
   await page.goto("/#/run");
   const bar = page.locator(".machine-bar");
   await expect(bar).toContainText("8.0 GiB"); // detected RTX 4060 Laptop (8 GB)
-  await page.getByRole("button", { name: "My computer · edit" }).click();
+  await page.getByRole("button", { name: /My computer · (Live|Ideal)/ }).click();
   const dlg = page.getByRole("dialog");
   await expect(dlg.getByText("Detected on this computer")).toBeVisible();
+  // current usage is the default; optimal can be chosen and is shown on the badge
+  await expect(dlg.getByRole("group", { name: "Memory figures" }).getByRole("button", { name: "Live" })).toHaveAttribute("aria-pressed", "true");
+  await dlg.getByRole("group", { name: "Memory figures" }).getByRole("button", { name: "Ideal (apps closed)" }).click();
+  await expect(page.locator(".machine-bar")).toContainText("My computer · Ideal");
+  await dlg.getByRole("group", { name: "Memory figures" }).getByRole("button", { name: "Live" }).click();
   await dlg.getByRole("button", { name: "More Graphics memory (VRAM)" }).click();
   await expect(dlg.getByText("Changed")).toBeVisible();
   await dlg.getByRole("button", { name: "Use my computer" }).click();
   await expect(dlg).toBeHidden();
   await expect(bar).toContainText("9.0 GiB");
 
-  await page.getByRole("button", { name: "My computer · edit" }).click();
+  await page.getByRole("button", { name: /My computer · (Live|Ideal)/ }).click();
   await page.getByRole("dialog").getByRole("radio", { name: /Sample machine/ }).click();
   await page.getByRole("dialog").getByRole("radio", { name: /Workstation/ }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Show this machine" }).click();
@@ -41,6 +46,6 @@ test("desktop: edit detected values, try a sample machine, switch back", async (
   await page.getByRole("button", { name: /Sample: Workstation/ }).click();
   await page.getByRole("dialog").getByRole("radio", { name: /My computer/ }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Use my computer" }).click();
-  await expect(page.getByRole("button", { name: "My computer · edit" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /My computer · (Live|Ideal)/ })).toBeVisible();
   await expect(bar).toContainText("8.0 GiB");
 });

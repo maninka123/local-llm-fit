@@ -2,6 +2,11 @@
 
 Short, user-facing notes. The section for each version is shown in the app's update window.
 
+## 1.0.13
+- Choose Live (apps open) or Ideal (apps closed) memory for your computer
+- Update button in the top-right corner when a new version is ready
+- Consistent fonts on Windows and Linux; centred text in the Data/Time bars
+
 ## 1.0.12
 - Try sample machines in the desktop app, or adjust your detected memory
 - Cleaner update window with a short “What's new” list

@@ -51,8 +51,8 @@
   --ease: cubic-bezier(0.32, 0.72, 0, 1);
   --dur: 480ms;
   --sidebar: 260px;
-  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font: "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Noto Sans", Ubuntu, Cantarell, Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-display: "Segoe UI Variable Display", "Segoe UI", -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, "Noto Sans", Ubuntu, Cantarell, Roboto, "Helvetica Neue", Arial, sans-serif;
   --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
 }
 
@@ -3621,4 +3621,54 @@ input[type="range"]::-moz-range-thumb {
   flex: none;
   margin-top: 2px;
   color: var(--good);
+}
+
+/* every control uses the app font (some platforms default form controls to a system UI font) */
+button,
+input,
+select,
+textarea,
+.badge,
+.pill {
+  font-family: var(--font);
+}
+/* Data / Time bars: same look as before; explicit app font and true vertical centring
+   (Windows WebView otherwise renders this text differently) */
+.work-gpu,
+.work-cpu {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  font-family: var(--font);
+  line-height: 1;
+}
+.work-label {
+  line-height: 18px;
+}
+
+.update-btn {
+  animation: pop 260ms var(--ease) both;
+  box-shadow: 0 6px 16px -8px var(--accent);
+}
+
+/* machine bar: chips wrap on the left, actions stay pinned top-right */
+.machine-bar .inner {
+  flex-wrap: nowrap;
+  align-items: flex-start;
+}
+.bar-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+.bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  min-height: 38px;
 }

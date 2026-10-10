@@ -1,6 +1,7 @@
-import { Cpu, HardDrive, Laptop, Monitor, MemoryStick, RefreshCw, Server, CircuitBoard, Boxes } from "lucide-react";
+import { Cpu, HardDrive, Laptop, Monitor, MemoryStick, RefreshCw, Download, Server, CircuitBoard, Boxes } from "lucide-react";
 import { useStore } from "../state/store";
 import { useMachine } from "../state/derived";
+import { useUpdater } from "./Updater";
 import { DEMO_MACHINES } from "../platform/demoHardware";
 import { fmtBytes } from "../lib/units";
 import type { FormFactor } from "../domain/types";
@@ -28,6 +29,9 @@ export function MachineBar() {
   const rescan = useStore((s) => s.rescanHardware);
   const demoName = useStore((s) => DEMO_MACHINES.find((d) => d.id === s.demoId)?.name.split(" · ")[0] ?? "sample");
   const setSetupOpen = useStore((s) => s.setSetupOpen);
+  const basis = useStore((s) => s.settings.memoryBasis);
+  const updPhase = useUpdater((u) => u.phase);
+  const updVersion = useUpdater((u) => u.update?.version);
   const m = useMachine();
   if (!hw || !m) {
     return (
@@ -46,6 +50,7 @@ export function MachineBar() {
   return (
     <header className="machine-bar" aria-label="Your machine">
       <div className="inner">
+        <div className="bar-chips">
         {hw.mode === "demo" || (hw.demo && hw.mode == null) ? (
           <button className="badge demo" style={{ cursor: "pointer" }} onClick={() => setSetupOpen(true)} data-tip="You're looking at a sample computer. Click to switch to yours." data-tip-pos="below">
             Sample: {demoName} · change
@@ -61,8 +66,14 @@ export function MachineBar() {
             {hw.browserConfirmed ? "My computer · edit" : "Set up my computer"}
           </button>
         ) : (
-          <button className="badge demo" style={{ cursor: "pointer" }} onClick={() => setSetupOpen(true)} data-tip="Detected on this computer. Click to try other values or a sample machine." data-tip-pos="below">
-            My computer · edit
+          <button
+            className="badge demo"
+            style={{ cursor: "pointer" }}
+            onClick={() => setSetupOpen(true)}
+            data-tip={basis === "live" ? "Live: memory free right now, with your apps open. Click to change." : "Ideal: as if other apps were closed. Click to change."}
+            data-tip-pos="below"
+          >
+            My computer · {basis === "live" ? "Live" : "Ideal"}
           </button>
         )}
         <span className="chip" title={`${hw.os.name} ${hw.os.version}`}>
@@ -109,12 +120,19 @@ export function MachineBar() {
             </span>
           </>
         )}
-        <span className="spacer" />
+        </div>
+        <div className="bar-actions">
         {hw.mode !== "demo" && (
           <button className="btn icon-btn round" onClick={() => void rescan()} disabled={status === "probing"} aria-label="Rescan hardware" data-tip="Rescan hardware" data-tip-pos="below" data-tip-align="end">
             <RefreshCw size={16} className={status === "probing" ? "spin" : ""} />
           </button>
         )}
+        {(updPhase === "available" || updPhase === "downloading" || updPhase === "installing") && (
+          <button className="btn primary sm update-btn" onClick={() => useUpdater.getState().set({ open: true })} data-tip={updVersion ? `Version ${updVersion} is ready` : "Update ready"} data-tip-pos="below" data-tip-align="end">
+            <Download size={15} /> {updPhase === "available" ? "Update" : "Updating…"}
+          </button>
+        )}
+        </div>
       </div>
     </header>
   );

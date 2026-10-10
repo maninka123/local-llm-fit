@@ -167,6 +167,7 @@ function DetectedFormInner({ native, overrides, onDone }: { native: import("../d
   const [vram, setVram] = useState<number | null>(overrides?.vramTotalGiB ?? detVram);
   const [ram, setRam] = useState<number>(overrides?.ramTotalGiB ?? detRam);
   const changed = ram !== detRam || (vram != null && vram !== detVram);
+  const basis = useStore((s) => s.settings.memoryBasis);
 
   const apply = () => {
     const st = useStore.getState();
@@ -207,7 +208,21 @@ function DetectedFormInner({ native, overrides, onDone }: { native: import("../d
       </div>
       <div className="setup-step">
         <div className="setup-q">
-          <span className="step-num">✎</span> Try different values (optional)
+          <span className="step-num">1</span> Plan with which memory?
+        </div>
+        <Seg
+          label="Memory figures"
+          value={basis}
+          onChange={(v) => useStore.getState().setSettings({ memoryBasis: v })}
+          options={[
+            { value: "live", label: "Live", title: "Memory free right now, with your apps open" },
+            { value: "planning", label: "Ideal (apps closed)", title: "As if other apps were closed, keeping a safety margin" },
+          ]}
+        />
+      </div>
+      <div className="setup-step">
+        <div className="setup-q">
+          <span className="step-num">2</span> Try different values (optional)
         </div>
         <div className="grid cols-2" style={{ gap: 16 }}>
           {unified ? (
