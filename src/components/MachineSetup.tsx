@@ -8,6 +8,7 @@ import { GpuCombobox } from "./GpuCombobox";
 import { Modal, Seg } from "./ui";
 import { DEMO_MACHINES } from "../platform/demoHardware";
 import { GiB } from "../lib/units";
+import { FormIcon } from "./MachineBar";
 
 const RELEASES = "https://github.com/maninka123/local-llm-fit/releases";
 
@@ -66,6 +67,9 @@ function SamplePicker({ onDone }: { onDone?: () => void }) {
     if (ram !== baseRam) {
       o.ramTotalGiB = ram;
       o.ramFreeGiB = Math.round(ram * 0.7 * 10) / 10; // assume a typical 30% already in use
+      // Keep the GPU's share of unified memory in proportion (e.g. 27 of 36 GB → 12 of 16 GB).
+      const limit = sample.report.unifiedGpuWorkingSetBytes.value;
+      if (unified && limit != null && baseRam > 0) o.unifiedGpuLimitGiB = Math.round(((limit / GiB) * ram) / baseRam * 10) / 10;
     }
     if (!unified && vram != null && vram !== baseVram) {
       o.vramTotalGiB = vram;
@@ -86,19 +90,29 @@ function SamplePicker({ onDone }: { onDone?: () => void }) {
       <p className="muted" style={{ margin: 0, fontSize: 15 }}>
         Pick a ready-made computer, then adjust it if you like. Your own answers are kept for when you switch back.
       </p>
-      <div className="sample-grid" role="radiogroup" aria-label="Sample machines">
-        {DEMO_MACHINES.map((d) => {
-          const ff = d.report.formFactor.value;
-          return (
-            <button key={d.id} type="button" role="radio" aria-checked={sel === d.id} className={`choice-card ${sel === d.id ? "on" : ""}`} onClick={() => pick(d.id)}>
-              <span className="choice-icon">{ff === "laptop" ? <Laptop size={22} /> : <Monitor size={22} />}</span>
-              <span className="choice-title">{d.name.split(" · ")[0]}</span>
-              <span className="choice-sub">{d.name.split(" · ").slice(1).join(" · ")}</span>
-              <CheckCircle2 size={18} className="choice-check" aria-hidden />
-            </button>
-          );
-        })}
-      </div>
+      {[
+        { title: "Computers", items: DEMO_MACHINES.filter((d) => d.group !== "board") },
+        { title: "Single-board & edge AI", items: DEMO_MACHINES.filter((d) => d.group === "board") },
+      ].map((grp) => (
+        <div key={grp.title} className="stack" style={{ gap: 8 }}>
+          <div className="sample-group">{grp.title}</div>
+          <div className="sample-grid" role="radiogroup" aria-label={`Sample machines: ${grp.title}`}>
+            {grp.items.map((d) => {
+              const ff = d.report.formFactor.value;
+              return (
+                <button key={d.id} type="button" role="radio" aria-checked={sel === d.id} className={`choice-card ${sel === d.id ? "on" : ""}`} onClick={() => pick(d.id)}>
+                  <span className="choice-icon">
+                    <FormIcon f={ff} size={22} />
+                  </span>
+                  <span className="choice-title">{d.name.split(" · ")[0]}</span>
+                  <span className="choice-sub">{d.name.split(" · ").slice(1).join(" · ")}</span>
+                  <CheckCircle2 size={18} className="choice-check" aria-hidden />
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
       <div className="setup-step sample-edit appear" key={sel}>
         <div className="setup-q">
           <span className="step-num">✎</span> Adjust this sample (optional)

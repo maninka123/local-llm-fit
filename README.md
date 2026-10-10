@@ -4,7 +4,7 @@
 
 **[▶ Try it in your browser](https://maninka123.github.io/local-llm-fit/)** · **[Download the desktop app](https://github.com/maninka123/local-llm-fit/releases/latest)**
 
-> **Tip:** Browsers hide exact hardware details, so the web version estimates your machine and may not get every spec right. For exact, live readings, use the desktop app. It's a tiny download (about 2–3 MB on Windows and Mac).
+> **Tip:** Browsers hide exact hardware details, so the web version estimates your machine and may not get every spec right. For exact, live readings, use the desktop app. It's a tiny download (about 2–3 MB on Windows and Mac). The website has a **Get the desktop app** button that picks the right file for you.
 
 ![Playground: build a model and see where it fits](docs/screenshots/playground.png)
 
@@ -14,6 +14,7 @@
 - **What can I run.** Every model in a 430+ variant catalog is sorted into *Runs well · Runs, but slower · Tight fit · Won't run* and ranked best-first using size, popularity, recency, features and fit (each card says why).
 - **Try a specific model.** Search Ollama or Hugging Face, paste a link, or type the details. See compatibility instantly, then save it to your catalog.
 - **Honest estimates.** Exact file sizes, layers and KV heads come from the official Ollama registry. Apple Silicon is treated as one unified pool, Windows "shared GPU memory" is never counted as VRAM, and speed is never invented. A local benchmark (through Ollama, only when you click) measures real tokens per second.
+- **Sample machines** to explore without your own hardware: gaming PCs, a MacBook, a workstation, and single-board / edge AI devices (Raspberry Pi 4/5, Orange Pi 5 Plus, Jetson Nano, Orin Nano Super, Orin NX, AGX Orin, AGX Thor, DGX Spark). Each one can be adjusted.
 - **Light, dark or system theme**, keyboard and reduced-motion friendly.
 
 ![Where a model would live on a 16 GB GPU](docs/screenshots/detail-moe.png)
@@ -31,7 +32,7 @@
 
 ## Install
 
-Download from [Releases](https://github.com/maninka123/local-llm-fit/releases/latest). Not sure which file? See **[which file to download](docs/RELEASE_ASSETS.md)**. In short: Windows `…x64-setup.exe`, Mac `…aarch64.dmg` (Apple Silicon) or `…x64.dmg` (Intel), Linux `…AppImage`. The installers are not code-signed yet: on macOS right-click the app → **Open** the first time; on Windows choose **More info → Run anyway**.
+Download from [Releases](https://github.com/maninka123/local-llm-fit/releases/latest). Not sure which file? See **[which file to download](docs/RELEASE_ASSETS.md)**. In short: Windows `…x64-setup.exe`, Mac `…aarch64.dmg` (Apple Silicon) or `…x64.dmg` (Intel), Linux `…amd64.AppImage`, Raspberry Pi / Jetson / other 64-bit ARM boards `…aarch64.AppImage`. The installers are not code-signed yet: on macOS right-click the app → **Open** the first time; on Windows choose **More info → Run anyway**.
 
 The app checks GitHub for new versions on launch and shows an update dialog with progress; it can also be checked from **Settings → Updates**. On Linux, auto-update applies to the AppImage; `.deb`/`.rpm` installs update through your package manager.
 
@@ -57,7 +58,7 @@ npm version 1.1.0      # updates the version and creates the tag v1.1.0
 git push --follow-tags
 ```
 
-The tag starts `.github/workflows/release.yml`, which builds Windows, macOS (Apple Silicon + Intel) and Linux, signs the update bundles with the `TAURI_SIGNING_PRIVATE_KEY` repository secret, publishes the release and its `latest.json`. Installed apps then offer the update automatically. The private key must stay secret and backed up: without it, existing installs can't verify new updates.
+The tag starts `.github/workflows/release.yml`, which builds Windows, macOS (Apple Silicon + Intel) and Linux (x64 + ARM64), signs the update bundles with the `TAURI_SIGNING_PRIVATE_KEY` repository secret, publishes the release and its `latest.json`. Installed apps then offer the update automatically. The private key must stay secret and backed up: without it, existing installs can't verify new updates.
 
 ## How the estimate works
 

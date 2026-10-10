@@ -113,7 +113,6 @@ body {
   text-rendering: optimizeLegibility;
   font-feature-settings: "ss01", "cv11";
 }
-[data-theme="light"] 
 a {
   color: var(--accent);
   text-decoration: none;
@@ -3671,4 +3670,86 @@ textarea,
   gap: 8px;
   flex: none;
   min-height: 38px;
+}
+
+/* sample picker groups */
+.sample-group {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+/* web: "Get the desktop app" (top-right) */
+.desktop-cta {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 16%, transparent), color-mix(in srgb, var(--accent) 6%, transparent));
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  color: var(--accent);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.desktop-cta:hover {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+@media (max-width: 640px) {
+  .desktop-cta span {
+    display: none;
+  }
+}
+.cta-perks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px;
+}
+.cta-perks li {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+}
+.cta-perks li > span:last-child {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 14px;
+}
+.cta-perks .cta-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.cta-size {
+  font-weight: 500;
+  opacity: 0.8;
+  padding-left: 8px;
+  margin-left: 2px;
+  border-left: 1px solid currentColor;
+}
+a.btn:hover {
+  text-decoration: none;
+}
+
+/* capability table: keep the evidence column readable; the wrapper scrolls sideways */
+.cap-table {
+  min-width: 820px;
+}
+@media (max-width: 640px) {
+  .machine-bar .badge {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }

@@ -1,9 +1,11 @@
-import { Cpu, HardDrive, Laptop, Monitor, MemoryStick, RefreshCw, Download, Server, CircuitBoard, Boxes } from "lucide-react";
+import { Cpu, HardDrive, Laptop, Monitor, MemoryStick, RefreshCw, Download, Server, CircuitBoard, Boxes, Microchip } from "lucide-react";
 import { useStore } from "../state/store";
 import { useMachine } from "../state/derived";
 import { useUpdater } from "./Updater";
 import { DEMO_MACHINES } from "../platform/demoHardware";
 import { fmtBytes } from "../lib/units";
+import { isTauri } from "../platform/bridge";
+import { DesktopCta } from "./DesktopCta";
 import type { FormFactor } from "../domain/types";
 
 export const FORM_LABEL: Record<FormFactor, string> = {
@@ -12,6 +14,7 @@ export const FORM_LABEL: Record<FormFactor, string> = {
   workstation: "Workstation",
   server: "Server",
   virtual_machine: "Virtual machine",
+  embedded: "Single-board computer",
   unknown: "Unknown",
 };
 
@@ -19,6 +22,7 @@ export function FormIcon({ f, size = 15 }: { f: FormFactor | null | undefined; s
   if (f === "laptop") return <Laptop size={size} />;
   if (f === "server" || f === "workstation") return <Server size={size} />;
   if (f === "virtual_machine") return <Boxes size={size} />;
+  if (f === "embedded") return <Microchip size={size} />;
   return <Monitor size={size} />;
 }
 
@@ -127,7 +131,8 @@ export function MachineBar() {
             <RefreshCw size={16} className={status === "probing" ? "spin" : ""} />
           </button>
         )}
-        {(updPhase === "available" || updPhase === "downloading" || updPhase === "installing") && (
+        {!isTauri() && <DesktopCta />}
+        {(updPhase === "available"|| updPhase === "downloading" || updPhase === "installing") && (
           <button className="btn primary sm update-btn" onClick={() => useUpdater.getState().set({ open: true })} data-tip={updVersion ? `Version ${updVersion} is ready` : "Update ready"} data-tip-pos="below" data-tip-align="end">
             <Download size={15} /> {updPhase === "available" ? "Update" : "Updating…"}
           </button>

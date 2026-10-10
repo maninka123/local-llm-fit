@@ -185,7 +185,7 @@ export interface GpuDevice {
   external?: boolean;
 }
 
-export type FormFactor = "desktop" | "laptop" | "workstation" | "server" | "virtual_machine" | "unknown";
+export type FormFactor = "desktop" | "laptop" | "workstation" | "server" | "virtual_machine" | "embedded" | "unknown";
 export type MemoryArchitecture = "discrete" | "unified" | "integrated_shared" | "cpu_only";
 
 export interface HardwareReport {

@@ -253,8 +253,35 @@ const BANDWIDTH: Record<string, number> = {
   "Apple M4": 120, "Apple M4 Pro": 273, "Apple M4 Max": 480, "Apple M5": 153,
 };
 
+// Single-board computers and NVIDIA Jetson / DGX Spark (published peak GB/s). Matched on the
+// GPU name (Jetson, Spark) or the CPU/SoC name (Raspberry Pi, RK3588). Order matters.
+const BOARDS: [RegExp, number][] = [
+  [/jetson\s*agx\s*thor/, 273],
+  [/gb10|dgx\s*spark/, 273],
+  [/jetson\s*agx\s*orin/, 204.8],
+  [/jetson\s*orin\s*nx/, 102.4],
+  [/jetson\s*orin\s*nano.*super/, 102],
+  [/jetson\s*orin\s*nano/, 68],
+  [/tegra\s*x1|jetson\s*nano/, 25.6],
+  [/bcm2712|raspberry\s*pi\s*5/, 17],
+  [/bcm2711|raspberry\s*pi\s*4/, 12.8],
+  [/rk3588|orange\s*pi\s*5|rock\s*5/, 34],
+];
+
+function boardBandwidth(name: string | null | undefined): number | null {
+  const s = (name ?? "").toLowerCase();
+  return s ? (BOARDS.find(([re]) => re.test(s))?.[1] ?? null) : null;
+}
+
+/** System RAM bandwidth for known boards/SoCs (by CPU name). null = a typical PC is assumed. */
+export function ramBandwidthFor(cpuName: string | null | undefined): number | null {
+  return boardBandwidth(cpuName);
+}
+
 /** Peak memory bandwidth for a GPU/chip name, when known. */
 export function bandwidthFor(name: string | null | undefined): number | null {
+  const board = boardBandwidth(name);
+  if (board != null) return board;
   const spec = lookupGpu(name);
   return spec ? (BANDWIDTH[spec.name] ?? null) : null;
 }

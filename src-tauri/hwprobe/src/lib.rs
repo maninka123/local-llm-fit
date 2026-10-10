@@ -115,6 +115,8 @@ pub enum FormFactor {
     Workstation,
     Server,
     VirtualMachine,
+    /// Single-board / embedded computer (Raspberry Pi, Jetson, RK3588 boards).
+    Embedded,
     Unknown,
 }
 

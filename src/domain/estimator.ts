@@ -99,13 +99,15 @@ export interface MachineProfile {
   combineGpus: boolean;
   ramTotal: number | null;
   ramFree: number | null;
-  /** Unified memory: max GPU working set (Metal recommendedMaxWorkingSetSize) when known. */
+  /** Unified memory: max GPU working set (Metal recommendedMaxWorkingSetSize on Macs) when known. */
   unifiedGpuLimit: number | null;
   unifiedGpuLimitSource: "detected" | "user" | "assumed";
   /** Whether the GPU vendor has an Ollama GPU backend (null = unknown). */
   gpuBackendSupported: boolean | null;
   /** Published peak memory bandwidth of the GPU / Apple chip in GB/s (null = unknown). Speed guesses only. */
   gpuBandwidthGBs?: number | null;
+  /** System RAM bandwidth in GB/s when known (single-board computers). null = typical PC RAM. */
+  ramBandwidthGBs?: number | null;
   label: string;
 }
 
@@ -218,8 +220,10 @@ export function guessSpeed(
   if (f > 0 && bw == null) return null;
   const unified = machine.arch === "unified";
   const gpuEff = unified ? [0.55, 0.68, 0.8] : [0.5, 0.65, 0.8];
-  // CPU side: unified Macs read the same pool (CPU reaches less of it); PCs read system RAM.
-  const cpuBw = unified && bw ? [bw * 0.35, bw * 0.45, bw * 0.55] : [45 * 0.45, 65 * 0.58, 90 * 0.7];
+  // CPU side: unified machines read the same pool (CPU reaches less of it); PCs read system RAM
+  // (typical desktop DDR4/DDR5 unless the board's RAM speed is known, e.g. a Raspberry Pi).
+  const rb = machine.ramBandwidthGBs ?? null;
+  const cpuBw = unified && bw ? [bw * 0.35, bw * 0.45, bw * 0.55] : rb ? [rb * 0.45, rb * 0.58, rb * 0.7] : [45 * 0.45, 65 * 0.58, 90 * 0.7];
   const overhead = f >= 0.999 ? 0.0015 : f <= 0.001 ? 0.004 : 0.006;
   const at = (i: number) => {
     const gpuTime = f > 0 && bw ? (f * perToken) / (bw * gpuEff[i] * 1e9) : 0;
@@ -409,9 +413,13 @@ export function computePools(machine: MachineProfile, settings: EstimatorSetting
   let ramUsable: number | null = null;
   let mode: "live" | "planning" = "planning";
   if (ramFree != null) {
-    ramUsable = Math.max(0, ramFree - r.liveRamReserveGiB * GiB);
+    // Small devices (4 GB boards) can't spare the default 2 GiB: cap it at a quarter of physical
+    // RAM. A reserve the user set themselves is used as is.
+    const userSet = r.liveRamReserveGiB !== DEFAULT_RESERVES.liveRamReserveGiB;
+    const reserve = !userSet && ramPhysical != null ? Math.min(r.liveRamReserveGiB * GiB, ramPhysical / 4) : r.liveRamReserveGiB * GiB;
+    ramUsable = Math.max(0, ramFree - reserve);
     mode = "live";
-    notes.push(`RAM: measured ${fmtBytes(ramFree)} available − ${r.liveRamReserveGiB} GiB reserve for OS and apps`);
+    notes.push(`RAM: measured ${fmtBytes(ramFree)} available − ${fmtBytes(reserve)} reserve for OS and apps`);
   } else if (ramPhysical != null) {
     ramUsable = ramPhysical * (1 - r.planningRamReservePct / 100);
     notes.push(`RAM (planning mode): ${fmtBytes(ramPhysical)} × (1 − ${r.planningRamReservePct}% reserve)`);

@@ -243,3 +243,30 @@ test("compare: add models from the searchable dropdown", async ({ page }) => {
   await page.keyboard.press("Enter");
   await expect(page.getByRole("heading", { name: "2 models side by side" })).toBeVisible();
 });
+
+test("web: the desktop app offer opens with a download for this system", async ({ page }) => {
+  await page.route("https://api.github.com/**", (r) => r.fulfill({ json: { assets: [{ name: "Model.Fit.Explorer_9.9.9_x64-setup.exe", browser_download_url: "https://example.invalid/win.exe", size: 2_200_000 }, { name: "Model.Fit.Explorer_9.9.9_aarch64.dmg", browser_download_url: "https://example.invalid/mac.dmg", size: 2_600_000 }, { name: "Model.Fit.Explorer_9.9.9_amd64.AppImage", browser_download_url: "https://example.invalid/linux.AppImage", size: 80_000_000 }] } }));
+  await boot(page);
+  await page.getByRole("button", { name: "Get the desktop app" }).click();
+  const dlg = page.getByRole("dialog");
+  await expect(dlg.getByRole("heading", { name: "Get exact answers for your computer" })).toBeVisible();
+  const dl = dlg.getByRole("link", { name: /Download for/ });
+  await expect(dl).toHaveAttribute("href", /example\.invalid/);
+  await expect(dl).toContainText("MB");
+  await page.keyboard.press("Escape");
+  await expect(dlg).toBeHidden();
+});
+
+test("samples: a Jetson board runs models on its CUDA GPU from shared memory", async ({ page }) => {
+  await boot(page);
+  await page.getByRole("button", { name: /Sample: Gaming desktop/ }).click();
+  const dlg = page.getByRole("dialog");
+  await expect(dlg.getByText("Single-board & edge AI")).toBeVisible();
+  await dlg.getByRole("radio", { name: /Jetson Orin Nano Super/ }).click();
+  await dlg.getByRole("button", { name: "Show this machine" }).click();
+  const bar = page.locator(".machine-bar");
+  await expect(bar).toContainText("Sample: Jetson Orin Nano Super");
+  await expect(bar).toContainText("Unified");
+  await expect(page.getByText("CUDA acceleration")).toBeVisible();
+  await expect(page.getByText("Runs well · best picks")).toBeVisible();
+});

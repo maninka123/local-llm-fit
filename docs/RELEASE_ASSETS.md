@@ -8,6 +8,7 @@
 | **Linux** (any distro) | `Model.Fit.Explorer_<version>_amd64.AppImage` | Recommended: runs anywhere and updates itself. Make it executable, then run it. |
 | Linux: Ubuntu / Debian | `Model.Fit.Explorer_<version>_amd64.deb` | Install with `sudo apt install ./<file>.deb`. Updates via your package manager. |
 | Linux: Fedora / openSUSE | `Model.Fit.Explorer-<version>-1.x86_64.rpm` | Install with `sudo dnf install ./<file>.rpm`. |
+| **Raspberry Pi, Jetson, other ARM boards** (64-bit OS) | `Model.Fit.Explorer_<version>_aarch64.AppImage` | Or `…_arm64.deb` on Raspberry Pi OS / Ubuntu. Needs a desktop session. |
 
 **First launch:** the installers aren't code-signed yet. On macOS, right-click the app → **Open** → **Open**. On Windows, click **More info → Run anyway**.
 

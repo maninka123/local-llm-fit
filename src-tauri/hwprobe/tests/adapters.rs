@@ -351,3 +351,28 @@ fn report_serializes_camel_case() {
     let j = serde_json::to_string(&r).unwrap();
     assert!(j.contains("\"memoryArchitecture\"") && j.contains("\"unifiedGpuWorkingSetBytes\""));
 }
+
+#[test]
+fn linux_jetson_orin_is_unified_cuda_and_embedded() {
+    let env = FixtureEnv::default()
+        .file("/proc/device-tree/model", "NVIDIA Jetson Orin Nano Engineering Reference Developer Kit Super\0")
+        .dir("/sys/class/drm", &[]);
+    let mut r = empty_report(8);
+    run_probe(&LinuxProbe::new(Box::new(NoNvml)), &env, &mut r);
+    assert_eq!(r.gpus.len(), 1);
+    assert_eq!(r.gpus[0].kind, GpuKind::Unified);
+    assert_eq!(r.gpus[0].vendor, GpuVendor::Nvidia);
+    assert_eq!(r.memory_architecture.value, Some(MemoryArchitecture::Unified));
+    assert_eq!(r.form_factor.value, Some(FormFactor::Embedded));
+}
+
+#[test]
+fn linux_raspberry_pi_is_cpu_only_embedded() {
+    let env = FixtureEnv::default().file("/proc/device-tree/model", "Raspberry Pi 5 Model B Rev 1.0\0").dir("/sys/class/drm", &["card0", "card1"]);
+    let mut r = empty_report(8);
+    run_probe(&LinuxProbe::new(Box::new(NoNvml)), &env, &mut r);
+    assert_eq!(r.form_factor.value, Some(FormFactor::Embedded));
+    assert!(r.form_factor_evidence.iter().any(|e| e == "Model: Raspberry Pi 5 Model B Rev 1.0"));
+    assert_ne!(r.memory_architecture.value, Some(MemoryArchitecture::Unified));
+    assert_ne!(r.memory_architecture.value, Some(MemoryArchitecture::Discrete));
+}

@@ -170,7 +170,19 @@ export function Settings() {
               {s.webHardware === "browser" ? "Edit my computer" : "Use my computer"}
             </button>
             <span className="faint" style={{ fontSize: 14.5 }}>or try a sample machine:</span>
-            <Seg label="Sample machine" value={s.webHardware === "demo" ? s.demoId : ""} onChange={s.setDemo} options={DEMO_MACHINES.map((d) => ({ value: d.id, label: d.name }))} />
+            <select className="select" aria-label="Sample machine" value={s.webHardware === "demo" ? s.demoId : ""} onChange={(e) => e.target.value && s.setDemo(e.target.value)} style={{ maxWidth: 360 }}>
+              <option value="">Choose a sample…</option>
+              <optgroup label="Computers">
+                {DEMO_MACHINES.filter((d) => d.group !== "board").map((d) => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+              </optgroup>
+              <optgroup label="Single-board & edge AI">
+                {DEMO_MACHINES.filter((d) => d.group === "board").map((d) => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+              </optgroup>
+            </select>
           </div>
         </section>
       )}
@@ -180,7 +192,7 @@ export function Settings() {
           <div>
             <h2>Detected hardware</h2>
             <p>
-              Probe {hw.probeVersion} · {new Date(hw.detectedAt).toLocaleString()} {hw.demo && <span className="badge demo">Demo hardware</span>}
+              Probe {hw.probeVersion} · {new Date(hw.detectedAt).toLocaleString()} {hw.demo && <span className="badge demo">Sample machine</span>}
             </p>
           </div>
         </div>
@@ -252,6 +264,7 @@ export function Settings() {
               <option value="workstation">Workstation</option>
               <option value="server">Server</option>
               <option value="virtual_machine">Virtual machine</option>
+              <option value="embedded">Single-board computer</option>
             </select>
             <span className="field-hint">Form factor never changes the memory math; power limits affect speed, not capacity.</span>
           </label>
@@ -262,7 +275,7 @@ export function Settings() {
             <select className="select" value={o.memoryArchitecture ?? ""} onChange={(e) => s.setOverrides({ memoryArchitecture: (e.target.value || null) as MemoryArchitecture | null })}>
               <option value="">Detected ({hw.memoryArchitecture.value ?? "unknown"})</option>
               <option value="discrete">Discrete GPU (dedicated VRAM)</option>
-              <option value="unified">Unified memory (Apple Silicon)</option>
+              <option value="unified">Unified memory (Apple Silicon, Jetson)</option>
               <option value="integrated_shared">Integrated GPU (shares RAM)</option>
               <option value="cpu_only">CPU only</option>
             </select>

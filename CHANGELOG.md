@@ -2,6 +2,13 @@
 
 Short, user-facing notes. The section for each version is shown in the app's update window.
 
+## 1.0.15
+- New sample machines: Raspberry Pi 4/5, Orange Pi 5 Plus, Jetson Nano, Orin Nano Super, Orin NX, AGX Orin, AGX Thor and DGX Spark
+- Desktop app for 64-bit ARM Linux (Raspberry Pi, Jetson); detects Jetson GPUs and board names
+- Realistic speed guesses on boards with slower memory
+- The MacBook sample is now simply "MacBook"
+- Clearer wording on computers without a usable GPU, and several small fixes
+
 ## 1.0.14
 - Clearer memory choice: Live or Normal use
 

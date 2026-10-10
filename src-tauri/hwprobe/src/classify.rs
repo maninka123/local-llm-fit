@@ -90,6 +90,8 @@ pub fn apply_form_factor(r: &mut HardwareReport, s: &ChassisSignals) {
                 Some((FormFactor::Workstation, Confidence::Medium))
             } else if m.contains("mac mini") || m.contains("imac") {
                 Some((FormFactor::Desktop, Confidence::High))
+            } else if ["raspberry pi", "jetson", "orange pi", "radxa", "rock 5", "odroid", "khadas", "beaglebone", "libre computer"].iter().any(|b| m.contains(b)) {
+                Some((FormFactor::Embedded, Confidence::High))
             } else {
                 None
             };
@@ -122,11 +124,12 @@ pub fn apply_form_factor(r: &mut HardwareReport, s: &ChassisSignals) {
 }
 
 pub fn apply_memory_architecture(r: &mut HardwareReport) {
-    let apple = r.gpus.iter().any(|g| g.vendor == GpuVendor::Apple || g.kind == GpuKind::Unified);
+    let apple = r.gpus.iter().any(|g| g.vendor == GpuVendor::Apple);
+    let unified = apple || r.gpus.iter().any(|g| g.kind == GpuKind::Unified);
     let discrete = r.gpus.iter().any(|g| g.kind == GpuKind::Discrete && g.dedicated_bytes.value.map(|b| b >= 2 * GIB).unwrap_or(true));
     let integrated = r.gpus.iter().any(|g| g.kind == GpuKind::Integrated);
-    r.memory_architecture = if apple {
-        Field::known(MemoryArchitecture::Unified, "Apple Silicon GPU", Confidence::High)
+    r.memory_architecture = if unified {
+        Field::known(MemoryArchitecture::Unified, if apple { "Apple Silicon GPU" } else { "GPU shares system memory (Jetson / GB10)" }, Confidence::High)
     } else if discrete {
         Field::known(MemoryArchitecture::Discrete, "Discrete GPU with dedicated VRAM", Confidence::High)
     } else if integrated {

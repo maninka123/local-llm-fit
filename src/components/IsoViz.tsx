@@ -217,7 +217,7 @@ export function IsoViz({ est, machine }: { est: Estimate; machine: MachineProfil
     const limitLevel = isUnified && p.unifiedGpuLimit != null ? (n(reserve) + n(p.unifiedGpuLimit)) / (r.side * r.side) : null;
     containers.push({
       title: isUnified ? "Unified memory" : "System RAM",
-      sub: isUnified ? `${fmtBytes(p.ramPhysical)} · shared by CPU and GPU` : `${fmtBytes(p.ramPhysical)} · used for offload`,
+      sub: isUnified ? `${fmtBytes(p.ramPhysical)} · shared by CPU and GPU` : unifiedLike ? `${fmtBytes(p.ramPhysical)} · the CPU runs the model here` : `${fmtBytes(p.ramPhysical)} · used for offload`,
       side: r.side,
       levels: r.levels,
       blocks: fill(p.ramPhysical, r.cap, r.side, parts, "r"),
@@ -387,7 +387,7 @@ export function IsoViz({ est, machine }: { est: Estimate; machine: MachineProfil
           <i className="sw k-w" /> Weights
         </span>
         <span>
-          <i className="sw k-wo" /> Offloaded weights (CPU)
+          <i className="sw k-wo" /> {unifiedLike ? "Weights on the CPU" : "Offloaded weights (CPU)"}
         </span>
         {vision > 0 && (
           <span>

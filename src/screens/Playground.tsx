@@ -223,7 +223,7 @@ export function Playground() {
                 </div>
               </div>
               <div>
-                <div className="eyebrow">{machine.arch === "discrete" ? "GPU memory free" : machine.arch === "unified" ? "GPU can use" : "RAM free"}</div>
+                <div className="eyebrow">{machine.arch === "discrete" ? "Usable GPU memory" : machine.arch === "unified" ? "GPU can use" : "Usable RAM"}</div>
                 <div className="pg-big">
                   <AnimatedBytes bytes={machine.arch === "discrete" ? est.pools.vramUsable : machine.arch === "unified" ? Math.min(est.pools.unifiedGpuLimit ?? Infinity, est.pools.ramUsable ?? Infinity) : est.pools.ramUsable} />
                 </div>

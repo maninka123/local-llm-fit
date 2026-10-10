@@ -144,6 +144,9 @@ export function RunPage() {
     cpu_only: "CPU only",
   };
   const modelName = hw.formFactorEvidence.find((e) => e.startsWith("Model: "))?.slice(7);
+  // Whether a GPU can run models at all, and whether RAM is board-slow (e.g. a Raspberry Pi).
+  const gpuRuns = machine.gpuBackendSupported !== false && (machine.arch === "unified" || (machine.arch === "discrete" && machine.gpus.length > 0));
+  const slowRam = (machine.ramBandwidthGBs ?? 100) < 40;
 
   return (
     <div className="grid" style={{ gap: 18 }}>
@@ -261,14 +264,14 @@ export function RunPage() {
               free={machine.ramFree}
               usable={est0?.pools.ramUsable ?? null}
               limit={machine.arch === "unified" ? machine.unifiedGpuLimit : null}
-              note={machine.arch === "unified" ? "One shared pool. The dashed line marks how much the GPU may use." : "Used for offloaded model layers when GPU memory runs out."}
+              note={machine.arch === "unified" ? "One shared pool. The dashed line marks how much the GPU may use." : gpuRuns ? "Used for offloaded model layers when GPU memory runs out." : "Models load here and run on the CPU."}
             />
           </div>
           <div className="divider" />
           <div className="row">
             <Zap size={16} style={{ color: "var(--good)" }} />
             <span>
-              Comfortable size for fast replies: <b>{comfortableSize(machine, est0)}</b> <span className="faint">(dense model, Q4, 8K context)</span>
+              {gpuRuns ? "Comfortable size for fast replies" : "Comfortable size (runs on the CPU)"}: <b>{comfortableSize(machine, est0)}</b> <span className="faint">(dense model, Q4, 8K context)</span>
             </span>
           </div>
         </section>
@@ -292,7 +295,7 @@ export function RunPage() {
                 <div className="chipbox">
                   <Sparkles size={18} />
                   <b>GPU cores</b>
-                  <span>Metal acceleration</span>
+                  <span>{hw.gpus.some((g) => g.vendor === "nvidia") ? "CUDA acceleration" : "Metal acceleration"}</span>
                 </div>
               </div>
               <div className="chipbox" style={{ background: "color-mix(in srgb, var(--seg-weights) 10%, transparent)" }}>
@@ -325,8 +328,9 @@ export function RunPage() {
             </div>
           ) : (
             <p className="muted" style={{ fontSize: 15 }}>
-              Models run on the CPU from system RAM. Small models (1–8B at Q4) are usually pleasant; larger ones will be slow. GPU acceleration on integrated graphics
-              is not assumed.
+              {slowRam
+                ? "Models run on the CPU from this board's memory, which is much slower than a PC's. Expect a few words per second: 1–4B models at Q4 are the sweet spot."
+                : "Models run on the CPU from system RAM. Small models (1–8B at Q4) are usually pleasant; larger ones will be slow. GPU acceleration on integrated graphics is not assumed."}
             </p>
           )}
         </section>
@@ -389,8 +393,8 @@ export function RunPage() {
         </div>
         <div className="divider" />
         <div className="grid cols-3">
-          <PickList title="Runs well · best picks" items={picks.well} empty="Nothing fits entirely in GPU memory at these settings." />
-          <PickList title="Runs, but slower · best picks" items={picks.slower} empty="Nothing in this group." note="Part runs on the CPU. MoE models usually cope best." />
+          <PickList title="Runs well · best picks" items={picks.well} empty={gpuRuns ? "Nothing fits entirely in GPU memory at these settings." : "No usable GPU, so nothing runs at full speed. See the next column."} />
+          <PickList title="Runs, but slower · best picks" items={picks.slower} empty="Nothing in this group." note={gpuRuns ? "Part runs on the CPU. MoE models usually cope best." : "Runs on the CPU. Smaller and MoE models reply fastest."} />
           <PickList title="Tight fit · best picks" items={picks.tight} empty="Nothing in this group." note="Fits only if you close other apps." />
         </div>
         <p className="faint" style={{ fontSize: 13.5, margin: "14px 0 0" }}>

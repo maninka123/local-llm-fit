@@ -11,13 +11,13 @@ Everything here is implemented in `src/domain/estimator.ts`, a pure function `(m
 | **KV** | KV cache | `2 × layers × kv_heads × head_dim × ctx × bytes/elem × parallel` from GGUF/`/api/show`/`config.json`; sliding-window models get a bounded range; no metadata → wide heuristic range |
 | **H_gpu** | GPU runtime | KV + compute scratch (`0.3 GiB + 6 KiB × ctx × parallel`, ×0.6–×1.8) + image activations + backend context (0.3–0.7 GiB) |
 | **H_ram** | Host runtime | Runner process and buffers (0.3–0.9 GiB) |
-| **V, R, U** | Usable VRAM, RAM, unified pool | Live free memory minus your reserve (default 0.5 GiB VRAM, 2 GiB RAM). Without live readings: 10% VRAM / 20% RAM reserves |
+| **V, R, U** | Usable VRAM, RAM, unified pool | Live free memory minus your reserve (default 0.5 GiB VRAM, 2 GiB RAM, capped at a quarter of RAM on small boards). *Normal use* (no live readings): 10% VRAM / 20% RAM reserves |
 
 Every quantity is a range (low/mid/high). The class is computed at all three levels; if they disagree, confidence drops to *low* and a "borderline" warning appears.
 
 ## Classes
 
-- **Fully GPU**: W + H_gpu ≤ V (discrete) or ≤ the Metal working-set limit (unified).
+- **Fully GPU**: W + H_gpu ≤ V (discrete) or ≤ the GPU working-set limit (unified: Apple Silicon, Jetson, DGX Spark).
 - **Promising hybrid MoE**: does not fit fully, fits across VRAM + RAM, and A + KV + buffers ≤ V. Shown as *potential* only: real expert placement and speed must be measured.
 - **Hybrid likely slow**: fits across pools but the GPU can't hold the active computation.
 - **CPU only**: no usable GPU backend (or integrated graphics); fits in RAM.
@@ -27,7 +27,8 @@ Every quantity is a range (low/mid/high). The class is computed at all three lev
 
 ## Rules that prevent double counting
 
-- Apple Silicon: one unified pool with the GPU limited by `recommendedMaxWorkingSetSize` (assumed ⅔–¾ of RAM when not exposed). VRAM and RAM are never added.
+- Apple Silicon, NVIDIA Jetson (Orin, Thor) and DGX Spark: one unified pool. On Macs the GPU is limited by `recommendedMaxWorkingSetSize`; elsewhere it is assumed ⅔–¾ of RAM unless you set it. VRAM and RAM are never added.
+- Raspberry Pi, RK3588 boards and the original Jetson Nano run models on the CPU (Ollama has no GPU backend for them).
 - Windows "shared GPU memory" is system RAM and is never added to dedicated VRAM.
 - Integrated GPUs share RAM; Ollama GPU acceleration on them is not assumed.
 - Multiple GPUs are not summed unless you turn on *Combine GPUs* after verifying your runtime splits models.
@@ -35,7 +36,11 @@ Every quantity is a range (low/mid/high). The class is computed at all three lev
 
 ## Speed
 
-Only qualitative: *likely fast / reasonable / potentially slow / unknown*, based on residency and bytes read per token. A local benchmark (`eval_count ÷ eval_duration`, converted from nanoseconds) is shown as "Measured X tok/s on this computer" and stored with model digest, quantization, context, Ollama version, GPU, driver, OS and backend.
+Generating a word is mostly limited by memory bandwidth: every token reads the active weights plus the KV cache. The guess is
+
+`time per token = GPU bytes ÷ GPU bandwidth + CPU bytes ÷ RAM bandwidth + overhead`
+
+using published peak bandwidth for the GPU or chip (and for boards' RAM, e.g. Raspberry Pi 5 ≈ 17 GB/s), at 50–80% efficiency, so it is shown as a range with "≈". Typical desktop RAM is assumed when the board is unknown. When the GPU's bandwidth is unknown no number is shown. A local benchmark (`eval_count ÷ eval_duration`, converted from nanoseconds) is shown as "Measured X tok/s on this computer" and stored with model digest, quantization, context, Ollama version, GPU, driver, OS and backend.
 
 ## Data provenance
 

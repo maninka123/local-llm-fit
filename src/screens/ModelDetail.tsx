@@ -136,7 +136,7 @@ function Detail({ m }: { m: ModelVariant }) {
               </p>
             ) : (
               <p className="faint" style={{ marginTop: 10, fontSize: 14.5 }}>
-                No speed measurement yet. Speed is shown as a qualitative estimate only — run a local test to measure real tokens per second.
+                No speed measurement yet. The tok/s figure is a rough guess from memory speed; run a local test to measure the real speed.
               </p>
             )}
             <div className="row" style={{ marginTop: 14, gap: 22 }}>

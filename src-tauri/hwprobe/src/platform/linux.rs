@@ -20,6 +20,18 @@ fn read_trim(env: &dyn Env, p: &str) -> Option<String> {
     env.read_file(p).ok().map(|s| s.trim().to_string()).filter(|s| !s.is_empty())
 }
 
+/// Board name from the device tree (ARM boards), e.g. "Raspberry Pi 5 Model B Rev 1.0".
+pub fn device_tree_model(env: &dyn Env) -> Option<String> {
+    env.read_file("/proc/device-tree/model").ok().map(|s| s.trim_matches(|c: char| c == '\0' || c.is_whitespace()).to_string()).filter(|s| !s.is_empty())
+}
+
+/// Jetson modules with a GPU current Ollama supports (Orin, Thor). The original Nano / TX1 / TX2
+/// (Maxwell, Pascal) are left as CPU-only.
+fn cuda_jetson(model: &str) -> bool {
+    let m = model.to_lowercase();
+    m.contains("jetson") && (m.contains("orin") || m.contains("thor") || m.contains("xavier"))
+}
+
 pub fn drm_cards(env: &dyn Env) -> Vec<String> {
     env.list_dir("/sys/class/drm")
         .unwrap_or_default()
@@ -44,11 +56,31 @@ pub fn amd_vram_used(env: &dyn Env) -> Option<u64> {
 
 impl SystemProbe for LinuxProbe {
     fn gpus(&self, env: &dyn Env, r: &mut HardwareReport) {
+        // Jetson: the integrated CUDA GPU shares system memory and isn't a PCI/DRM device.
+        let board = device_tree_model(env);
+        if let Some(m) = board.as_deref().filter(|m| cuda_jetson(m)) {
+            let mut d = GpuDevice::new("gpu0", m, GpuVendor::Nvidia, GpuKind::Unified);
+            d.dedicated_bytes = Field::unknown("device tree", "Shares system memory with the CPU");
+            d.backend_hints = vec!["cuda".into()];
+            r.gpus.push(d);
+            r.notes.push(format!("NVIDIA Jetson detected from the device tree: {m}"));
+            return;
+        }
         let nv = self.nvidia.query(env);
         let mut nvidia_added = false;
         match &nv {
             Ok((rows, src)) => {
                 for row in rows {
+                    // GB10 (DGX Spark) shares one LPDDR5X pool with the CPU: no dedicated VRAM.
+                    if row.name.to_lowercase().contains("gb10") {
+                        let mut d = GpuDevice::new(format!("nvidia{}", row.index), row.name.clone(), GpuVendor::Nvidia, GpuKind::Unified);
+                        d.dedicated_bytes = Field::unknown(src.clone(), "Shares system memory with the CPU");
+                        d.driver_version = row.driver.clone();
+                        d.backend_hints = vec!["cuda".into()];
+                        r.gpus.push(d);
+                        nvidia_added = true;
+                        continue;
+                    }
                     let mut d = GpuDevice::new(format!("nvidia{}", row.index), row.name.clone(), GpuVendor::Nvidia, GpuKind::Discrete);
                     d.dedicated_bytes = Field::known(row.total_bytes, src.clone(), Confidence::High);
                     d.free_bytes = Field::known(row.free_bytes, format!("{src} (live)"), Confidence::High);
@@ -154,7 +186,7 @@ impl SystemProbe for LinuxProbe {
         ChassisSignals {
             chassis_types: chassis.into_iter().collect(),
             has_battery: battery,
-            model_name: None,
+            model_name: device_tree_model(env),
             is_vm: Some(hint.is_some()),
             vm_hint: hint,
             source: "DMI sysfs / power_supply".into(),

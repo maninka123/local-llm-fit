@@ -251,7 +251,7 @@ export function Explorer() {
       {rows.length === 0 ? (
         <div className="card">
           <Empty icon={<SearchX size={34} />} title="No models match these filters">
-            <span>Try removing a filter, turning off "Only verified", or searching online in Find a Model.</span>
+            <span>Try removing a filter, turning off "Only verified", or using "Try a specific model" to search online.</span>
             <button className="btn" onClick={() => f.reset()}>
               Clear filters
             </button>

@@ -1,7 +1,7 @@
 import { GiB } from "../lib/units";
 import type { MachineGpu, MachineProfile } from "./estimator";
 import type { GpuDevice, HardwareOverrides, HardwareReport, MemoryArchitecture } from "./types";
-import { bandwidthFor } from "../platform/gpuSpecs";
+import { bandwidthFor, ramBandwidthFor } from "../platform/gpuSpecs";
 
 // Turns a detected HardwareReport + user overrides into the MachineProfile the estimator uses.
 // Rules enforced here:
@@ -63,7 +63,8 @@ export function buildMachineProfile(report: HardwareReport, o: HardwareOverrides
     backend = chosen.length ? (chosen.every((g) => gpuBackendSupport(g) === true) ? true : chosen.some((g) => gpuBackendSupport(g) === false) ? false : null) : null;
     if (gpus[0]?.id === "manual") backend = true;
   } else if (arch === "unified") {
-    backend = report.gpus.some((g) => g.vendor === "apple") || o.memoryArchitecture === "unified" ? true : null;
+    // Apple Silicon (Metal) and NVIDIA Jetson / DGX Spark (CUDA) share one pool with a supported GPU.
+    backend = report.gpus.some((g) => g.vendor === "apple" || (g.vendor === "nvidia" && g.kind === "unified")) || o.memoryArchitecture === "unified" ? true : null;
   }
 
   const unifiedGpuLimit = o.unifiedGpuLimitGiB != null ? o.unifiedGpuLimitGiB * GiB : report.unifiedGpuWorkingSetBytes.value;
@@ -87,6 +88,7 @@ export function buildMachineProfile(report: HardwareReport, o: HardwareOverrides
     arch,
     gpus,
     gpuBandwidthGBs,
+    ramBandwidthGBs: arch === "unified" ? null : (ramBandwidthFor(report.cpu.brand) ?? ramBandwidthFor(report.formFactorEvidence.find((e) => e.startsWith("Model: "))?.slice(7))),
     combineGpus: o.combineGpus && gpus.length > 1,
     ramTotal,
     ramFree,

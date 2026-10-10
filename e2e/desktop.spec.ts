@@ -23,10 +23,11 @@ test("desktop: edit detected values, try a sample machine, switch back", async (
   await page.goto("/#/run");
   const bar = page.locator(".machine-bar");
   await expect(bar).toContainText("8.0 GiB"); // detected RTX 4060 Laptop (8 GB)
+  await expect(page.getByRole("button", { name: "Get the desktop app" })).toHaveCount(0); // web only
   await page.getByRole("button", { name: /My computer · (Live|Normal use)/ }).click();
   const dlg = page.getByRole("dialog");
   await expect(dlg.getByText("Detected on this computer")).toBeVisible();
-  // current usage is the default; optimal can be chosen and is shown on the badge
+  // Live is the default; Normal use can be chosen and is shown on the badge
   await expect(dlg.getByRole("group", { name: "Memory figures" }).getByRole("button", { name: "Live" })).toHaveAttribute("aria-pressed", "true");
   await dlg.getByRole("group", { name: "Memory figures" }).getByRole("button", { name: "Normal use" }).click();
   await expect(page.locator(".machine-bar")).toContainText("My computer · Normal use");
