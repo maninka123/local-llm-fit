@@ -210,9 +210,7 @@ export const useStore = create<State>()(
           if (get().webHardware === "demo") {
             const demo = DEMO_MACHINES.find((d) => d.id === get().demoId) ?? DEMO_MACHINES[0];
             set({ hardware: { ...demo.report, mode: "demo", detectedAt: new Date().toISOString() }, hardwareStatus: "ready" });
-            // Also read this computer, so the bar can show it next to the sample.
             if (isTauri() && !get().nativeReport) void probeHardware().then((r) => r && set({ nativeReport: { ...r, mode: "native" } }));
-            if (!isTauri() && !get().browserSignals) void detectBrowser().then((sig) => set({ browserSignals: sig })).catch(() => {});
             return;
           }
           if (!isTauri()) {

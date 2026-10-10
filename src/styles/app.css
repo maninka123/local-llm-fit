@@ -3775,40 +3775,57 @@ a.btn:hover {
   color: var(--warn);
 }
 
-/* machine bar while a sample is shown: your computer on top, the sample underneath */
-.bar-chips.stacked {
-  flex-direction: column;
-  align-items: stretch;
-  gap: 8px;
+
+/* ring around the machine the results are for */
+.bar-chips.active-machine {
+  padding: 6px;
+  border-radius: 24px;
+  border: 1.5px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 10%, transparent);
+  transition: border-color 200ms var(--ease), box-shadow 200ms var(--ease);
 }
-.bar-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 10px;
-  min-width: 0;
+.bar-chips.active-machine.is-sample {
+  border-style: dashed;
 }
-.bar-label {
-  flex: none;
-  min-width: 132px;
-  font-size: 12.5px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--text-3);
-}
-.bar-row.sample-row {
-  padding-top: 8px;
-  border-top: 1px dashed var(--border-strong);
+.back-mine {
+  white-space: nowrap;
 }
 @media (max-width: 640px) {
-  .bar-label {
-    min-width: 0;
+  .back-mine {
+    font-size: 13px;
+    padding: 0 10px;
+  }
+}
+.bar-chips.active-machine {
+  flex: 0 1 auto;
+}
+.machine-bar .bar-actions {
+  margin-left: auto;
+}
+@media (max-width: 640px) {
+  .machine-bar .inner {
+    flex-wrap: wrap;
+  }
+  .machine-bar .bar-actions {
+    order: 1;
     width: 100%;
+    justify-content: flex-end;
+  }
+  .bar-chips.active-machine {
+    order: 2;
+    flex: 1 1 100%;
   }
 }
 @media (max-width: 640px) {
-  .bar-chips.stacked .bar-row:first-child .chip {
-    display: none;
+  .active-machine .chip {
+    max-width: 100%;
+    min-width: 0;
+  }
+  .active-machine .chip b {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 }

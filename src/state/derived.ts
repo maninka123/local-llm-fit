@@ -1,9 +1,7 @@
 import { useMemo } from "react";
 import { estimate, type Estimate, type MachineProfile } from "../domain/estimator";
 import { buildMachineProfile } from "../domain/hardware";
-import type { BenchmarkRecord, HardwareReport, ModelVariant, QuantId } from "../domain/types";
-import { isTauri } from "../platform/bridge";
-import { buildBrowserReport, suggestSetup } from "../platform/browserDetect";
+import type { BenchmarkRecord, ModelVariant, QuantId } from "../domain/types";
 import { useStore, type QuantChoice } from "./store";
 
 export function quantFor(m: ModelVariant, choice: QuantChoice, perModel: Record<string, QuantId>): QuantId {
@@ -17,14 +15,6 @@ export function useMachine(): MachineProfile | null {
   const hw = useStore((s) => s.hardware);
   const o = useStore((s) => s.overrides);
   return useMemo(() => (hw ? buildMachineProfile(hw, o) : null), [hw, o]);
-}
-
-/** This computer's own hardware (desktop probe or browser answers), even while a sample is shown. */
-export function useOwnHardware(): HardwareReport | null {
-  const native = useStore((s) => s.nativeReport);
-  const sig = useStore((s) => s.browserSignals);
-  const setup = useStore((s) => s.browserSetup);
-  return useMemo(() => (isTauri() ? native : sig ? buildBrowserReport(sig, setup ?? suggestSetup(sig)) : null), [native, sig, setup]);
 }
 
 export function useEstimate(m: ModelVariant | undefined, quantOverride?: QuantId): Estimate | null {

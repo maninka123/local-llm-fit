@@ -274,4 +274,7 @@ test("samples: a Jetson board runs models on its CUDA GPU from shared memory", a
   await expect(bar).toContainText("Unified");
   await expect(page.getByText("CUDA acceleration")).toBeVisible();
   await expect(page.getByText("Runs well · best picks")).toBeVisible();
+  // one click back to your own computer
+  await page.getByRole("button", { name: /Back to my computer|Set up my computer/ }).first().click();
+  await expect(bar).not.toContainText("Sample:");
 });
