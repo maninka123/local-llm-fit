@@ -759,40 +759,31 @@ function describe(cls: FitClass, machine: MachineProfile, p: Placement | null, r
     case "full_gpu":
       return {
         headline: unified ? "Fits in GPU-usable unified memory" : "Weights likely fit in GPU",
-        summary:
-          (unified
-            ? "The whole model plus its working memory fits inside the part of unified memory the GPU can use."
-            : "The whole model plus its working memory fits in your graphics card's free memory.") +
-          (resp === "likely_fast" ? " Expect quick responses." : " Larger models read more memory per word, so replies may be steady rather than instant."),
+        summary: `Fits entirely in ${unified ? "the memory your GPU can use" : "your graphics card's memory"}.${resp === "likely_fast" ? " Expect quick replies." : " Bigger models reply a little slower."}`,
       };
     case "promising_moe":
       return {
         headline: "Needs RAM offload, but MoE may stay usable",
-        summary: `About ${pct}% of the model would sit in GPU memory (planned, not observed). Because this is a Mixture-of-Experts model, only a small part of it works on each word, so the slowdown may be modest. Only a real test can confirm.`,
+        summary: `About ${pct}% fits on the GPU, the rest goes to RAM. Only a few experts work per word, so it may still run well. A quick test will tell.`,
       };
     case "hybrid_slow":
       return {
         headline: "Needs RAM offload; generation may slow down",
-        summary: `Only about ${pct}% fits in ${unified ? "the GPU's share of memory" : "GPU memory"} (planned). The rest would run from system RAM on the CPU, which is usually much slower.`,
+        summary: `Only about ${pct}% fits on the GPU. The rest runs on the CPU from RAM, which is much slower.`,
       };
     case "cpu_only":
       return {
         headline: "Runs on the CPU from system RAM",
-        summary: machine.arch === "integrated_shared"
-          ? "Your integrated graphics shares system RAM; GPU acceleration in Ollama is not assumed. It fits in RAM, and speed depends on your CPU and memory bandwidth."
-          : "There is no usable GPU for this model, but it fits in system RAM. Expect slower replies than on a GPU.",
+        summary: machine.arch === "integrated_shared" ? "Fits in RAM and runs on the CPU (integrated graphics isn't used). Expect slower replies." : "No usable GPU, but it fits in RAM. Expect slower replies.",
       };
     case "memory_constrained":
-      return {
-        headline: "Only fits if you free up memory",
-        summary: "It would use memory your system normally needs for other apps. Close apps or pick a smaller quantization or context.",
-      };
+      return { headline: "Only fits if you free up memory", summary: "Fits only if you close other apps; otherwise it may swap to disk and crawl." };
     case "cannot_fit":
-      return { headline: "Too large for this computer", summary: "The model and its working memory exceed what this machine has, even with offloading. Try a smaller model or quantization." };
+      return { headline: "Too large for this computer", summary: "Needs more memory than this computer has, even with offloading. Try a smaller model or lower precision." };
     default:
       return {
         headline: "Needs verification",
-        summary: sizeUnknown ? "Estimate only: check the actual tagged file size. Use Verify to fetch it from Ollama." : "Some hardware details are unknown. Enter them in Your Machine to get an estimate.",
+        summary: sizeUnknown ? "Model size unknown. Check the actual tagged file size (Verify from Ollama) to get an estimate." : "Some hardware details are missing. Add them to get an estimate.",
       };
   }
 }

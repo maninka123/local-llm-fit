@@ -25,7 +25,7 @@ describe("required fit scenarios", () => {
     expect(e.classification).toBe("promising_moe");
     expect(e.confidence).not.toBe("high");
     expect(e.warnings.some((w) => /placement|places experts|must be measured/i.test(w.text))).toBe(true);
-    expect(e.summary).toMatch(/Only a real test can confirm/);
+    expect(e.summary).toMatch(/A quick test will tell/);
   });
 
   it("27B dense Q4 partially offloaded → Hybrid likely slow", () => {

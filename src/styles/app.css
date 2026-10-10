@@ -1087,7 +1087,6 @@ input[type="range"] {
 .verdict p {
   margin: 0;
   color: var(--text-2);
-  max-width: 70ch;
 }
 .meter {
   display: flex;
