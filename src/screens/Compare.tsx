@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { Columns3, X } from "lucide-react";
 import { useStore } from "../state/store";
-import { latestBenchmark, useMeasuredBenchmarks, quantFor, useMachine, ageText } from "../state/derived";
+import { latestBenchmark, useMeasuredBenchmarks, useBenchContext, quantFor, useMachine, ageText } from "../state/derived";
 import { estimate, CLASS_META } from "../domain/estimator";
 import { modalityLabel, resolveInput, resolveOutput, STATUS_TEXT } from "../domain/capabilities";
 import { quantInfo } from "../domain/quant";
@@ -20,6 +20,7 @@ export function Compare() {
   const per = useStore((s) => s.perModelQuant);
   const benches = useMeasuredBenchmarks();
   const machine = useMachine();
+  const benchCtx = useBenchContext();
   // Machines where Ollama can't use a GPU: everything lives in RAM.
   const gpuRuns = !!machine && machine.gpuBackendSupported !== false && (machine.arch === "unified" || (machine.arch === "discrete" && machine.gpus.length > 0));
 
@@ -144,7 +145,7 @@ export function Compare() {
           {line("Fit", rows.map(({ m, e }) => <FitPill key={m.id} cls={e.classification} cloud={m.cloudOnly} />))}
           {line("Confidence", rows.map(({ m, e }) => <ConfidenceMeter key={m.id} c={e.confidence} />))}
           {line("Speed (guess)", rows.map(({ m, e }) => {
-            const b = latestBenchmark(benches, m);
+            const b = latestBenchmark(benches, m, { ...benchCtx, quant: e.quant });
             return <SpeedLabel key={m.id} est={e} measured={b?.generationTokPerSec} />;
           }))}
           {line("Expected residency", rows.map(({ m, e }) => <span key={m.id}>{e.placement ? (gpuRuns ? `${Math.round(e.placement.gpuFraction * 100)}% GPU (planned)` : "RAM · runs on the CPU") : "—"}</span>))}

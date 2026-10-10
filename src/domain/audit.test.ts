@@ -8,7 +8,7 @@ import { ARCH_8B, artifact, discrete, model, settings } from "./testkit";
 import { GB, GiB } from "../lib/units";
 import { parseManifest } from "../catalog/ollamaOfficial";
 import { ggufArtifactsFromTree } from "../catalog/huggingface";
-import { sanitizeModel } from "../catalog/validate";
+import { sanitizeBenchmark, sanitizeCapabilityEvidence, sanitizeModel, sanitizeVerification } from "../catalog/validate";
 import { latestBenchmark } from "../state/derived";
 import { buildSample } from "../platform/samples";
 
@@ -104,5 +104,49 @@ describe("data you enter or import", () => {
     expect(latestBenchmark([b("old", "Q4_K_M")], m)).toBeUndefined();
     expect(latestBenchmark([b("new", "Q8_0")], m)).toBeUndefined();
     expect(latestBenchmark([b("new", "Q4_K_M")], m)).toBeDefined();
+  });
+});
+
+describe("second review", () => {
+  it("imported evidence with a numeric date is dropped, not a crash later", () => {
+    const m = sanitizeModel({
+      id: "x:1b",
+      displayName: "X",
+      capabilities: { inputs: { image: { evidence: [{ status: "verified_supported", scope: "user", source: "me", checkedAt: 123 }, { status: "nonsense", scope: "user" }] } } },
+    })!;
+    expect(m.capabilities.inputs.image.evidence).toHaveLength(1);
+    expect(m.capabilities.inputs.image.evidence[0].checkedAt).toBeUndefined();
+    expect(() => estimate(m, settings(), discrete(16, 15, 32, 24))).not.toThrow();
+  });
+  it("imported verifications and benchmarks are validated", () => {
+    expect(sanitizeVerification({ family: "a", variant: "1b", artifacts: [], checkedAt: 5 })).toBeNull();
+    expect(sanitizeVerification({ family: "a", variant: "1b", artifacts: [{ quant: "Q4_K_M", weightBytes: "big" }], checkedAt: "2026-01-01" })!.artifacts).toEqual([]);
+    expect(sanitizeBenchmark({ id: "b", model: "a", kind: "warm", createdAt: "2026-01-01", contextTokens: "8k" })).toBeNull();
+    expect(sanitizeCapabilityEvidence({ "a:1b": [{ key: "image", ev: { status: "verified_supported", scope: "user", source: "x" } }, { key: "smell", ev: {} }] })["a:1b"]).toHaveLength(1);
+  });
+  it("Hugging Face: a single file next to its own shards in one folder counts once", () => {
+    const a = ggufArtifactsFromTree("x/y", [
+      { path: "m-Q4_K_M.gguf", size: 4 * GB },
+      { path: "m-Q4_K_M-00001-of-00002.gguf", size: 2 * GB },
+      { path: "m-Q4_K_M-00002-of-00002.gguf", size: 2 * GB },
+    ], "2026-01-01");
+    expect(a).toHaveLength(1);
+    expect(a[0].weightBytes).toBe(4 * GB);
+    expect(a[0].provenance).toBe("verified");
+  });
+  it("Hugging Face: a shard set with parts missing is scaled up and marked estimated", () => {
+    const a = ggufArtifactsFromTree("x/y", [{ path: "big-Q8_0-00001-of-00002.gguf", size: 5 * GB }], "2026-01-01");
+    expect(a[0].provenance).toBe("estimated");
+    expect(a[0].weightBytes).toBe(10 * GB);
+  });
+  it("a measurement is only shown for the same quantization, context, GPU, and never if imported", () => {
+    const m = { ...model({ total: 8, dense: true }), id: "a:8b", resolvedTag: "a:8b", installed: { name: "a:8b", digest: "d", sizeBytes: 1, quantLabel: "Q4_K_M" } };
+    const b: BenchmarkRecord = { id: "1", createdAt: "2026-01-01", model: "a:8b", digest: "d", quantLabel: "Q4_K_M", contextTokens: 8192, temperature: 0, kind: "warm", wallMs: 1, gpuName: "RTX 4070", notes: [] };
+    const ctx = { quant: "Q4_K_M" as const, contextTokens: 8192, gpuName: "RTX 4070" };
+    expect(latestBenchmark([b], m, ctx)).toBeDefined();
+    expect(latestBenchmark([b], m, { ...ctx, quant: "Q8_0" })).toBeUndefined();
+    expect(latestBenchmark([b], m, { ...ctx, contextTokens: 32768 })).toBeUndefined();
+    expect(latestBenchmark([b], m, { ...ctx, gpuName: "RTX 3060" })).toBeUndefined();
+    expect(latestBenchmark([{ ...b, importedFrom: "backup.json" }], m, ctx)).toBeUndefined();
   });
 });

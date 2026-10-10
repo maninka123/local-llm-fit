@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Select } from "../components/Select";
 import { AlertTriangle, ArrowLeft, BadgeCheck, ChevronDown, Columns3, Download, ExternalLink, FlaskConical, Info, Layers, RefreshCw, ShieldAlert, Sparkles, OctagonAlert } from "lucide-react";
 import { useStore } from "../state/store";
-import { ageText, isStale, latestBenchmark, useMeasuredBenchmarks, quantFor, useMachine } from "../state/derived";
+import { ageText, isStale, latestBenchmark, useMeasuredBenchmarks, useBenchContext, quantFor, useMachine } from "../state/derived";
 import { estimate, publishedQuants, CLASS_META, type Estimate, type EstimatorSettings } from "../domain/estimator";
 import { QUANT_SELECTOR, quantInfo } from "../domain/quant";
 import { resolveInput } from "../domain/capabilities";
@@ -56,7 +56,8 @@ function Detail({ m }: { m: ModelVariant }) {
   const quant = quantFor(m, choice, per);
   const est: Estimate | null = useMemo(() => (machine ? estimate(m, { ...settings, quant }, machine) : null), [m, settings, quant, machine]);
   const published = publishedQuants(m);
-  const bench = latestBenchmark(benches, m);
+  const benchCtx = useBenchContext();
+  const bench = latestBenchmark(benches, m, { ...benchCtx, quant: est?.quant });
   const hw = useStore((s) => s.hardware);
   const running = useStore((s) => s.ollamaState.running);
   const loadedNow = !!m.installed && running.some((r) => r.name === m.installed!.name || r.digest === m.installed!.digest);

@@ -23,6 +23,8 @@ export interface HfModelInfo {
   gguf?: { total?: number; architecture?: string; context_length?: number };
   cardData?: { license?: string; base_model?: string | string[] };
   lastModified?: string;
+  /** Every file in the repo with its size (requested with ?blobs=true; not paginated). */
+  siblings?: { rfilename: string; size?: number; lfs?: { size?: number } }[];
 }
 
 export interface HfConfig {
@@ -36,7 +38,7 @@ export async function searchHf(q: string, limit = 8): Promise<HfSearchHit[]> {
 
 export async function fetchHfModel(id: string): Promise<HfModelInfo> {
   if (!safeModelName(id)) throw new Error("Invalid Hugging Face model id");
-  return httpJson<HfModelInfo>(`https://huggingface.co/api/models/${id}`);
+  return httpJson<HfModelInfo>(`https://huggingface.co/api/models/${id}?blobs=true`);
 }
 
 export async function fetchHfConfig(id: string): Promise<HfConfig | null> {
@@ -141,43 +143,61 @@ export function ggufArtifactsFromTree(id: string, tree: { path: string; size?: n
   const projectors = tree.filter((f) => /mmproj/i.test(f.path) && /\.gguf$/i.test(f.path) && f.size);
   // Prefer the F16 projector when several precisions are offered.
   const mmproj = projectors.find((f) => /f16/i.test(f.path)) ?? projectors[0];
-  // One group per model file: split shards (…-00001-of-00003.gguf) belong to the same file.
-  const groups = new Map<string, { quant: string; size: number; file: string }>();
+  // One group per model file. A single file and a set of split shards (…-00001-of-00003.gguf)
+  // are separate groups even with the same name, and a shard set records which parts it has.
+  type Group = { quant: string; size: number; file: string; parts: number; seen: Set<number> };
+  const groups = new Map<string, Group>();
   for (const f of files) {
+    const shard = /-(\d{5})-of-(\d{5})\.gguf$/i.exec(f.path);
     const file = f.path.replace(/-\d{5}-of-\d{5}(?=\.gguf$)/i, "");
     const q = GGUF_QUANT_RE.exec(file.split("/").pop() ?? "")?.[1]?.toUpperCase();
     if (!q) continue;
-    const g = groups.get(file) ?? { quant: q, size: 0, file };
+    const key = `${file}#${shard ? "split" : "single"}`;
+    const g = groups.get(key) ?? { quant: q, size: 0, file, parts: shard ? Number(shard[2]) : 1, seen: new Set<number>() };
     g.size += f.size ?? 0;
-    groups.set(file, g);
+    g.seen.add(shard ? Number(shard[1]) : 1);
+    groups.set(key, g);
   }
-  // Same quantization offered twice (e.g. one file and the same model split into shards):
-  // keep one copy, never add them together. Genuinely different files keep their own entry.
-  const byQuant = new Map<string, { quant: string; size: number; file: string }[]>();
-  for (const g of groups.values()) {
+  const complete = (g: Group) => g.seen.size >= g.parts;
+  // Per quantization: never add copies together. Complete files win over incomplete ones; an
+  // incomplete shard set (listing cut off) is scaled up from the parts present and marked estimated.
+  const byQuant = new Map<string, Group[]>();
+  for (const g of [...groups.values()].sort((a, b) => Number(complete(b)) - Number(complete(a)))) {
     const list = byQuant.get(g.quant) ?? [];
-    if (!list.some((x) => Math.abs(x.size - g.size) / Math.max(x.size, g.size) < 0.02)) list.push(g);
+    const size = complete(g) ? g.size : (g.size / g.seen.size) * g.parts;
+    const dup = list.some((x) => {
+      const xs = complete(x) ? x.size : (x.size / x.seen.size) * x.parts;
+      return Math.abs(xs - size) / Math.max(xs, size) < 0.05;
+    });
+    if (!dup && (complete(g) || !list.some(complete))) list.push(g);
     byQuant.set(g.quant, list);
   }
   return [...byQuant.values()].flatMap((list) =>
-    list.map((g) => ({
-      quant: normalizeQuant(g.quant),
-      quantLabel: list.length > 1 ? `${g.quant} (${g.file.split("/").pop()})` : g.quant,
-      weightBytes: g.size,
-      projectorBytes: mmproj?.size,
-      downloadBytes: g.size + (mmproj?.size ?? 0),
-      provenance: "verified" as const,
-      source: "Hugging Face file listing (GGUF)",
-      sourceUrl: `https://huggingface.co/${id}`,
-      checkedAt,
-    })),
+    list.map((g) => {
+      const whole = complete(g);
+      const size = whole ? g.size : Math.round((g.size / g.seen.size) * g.parts);
+      return {
+        quant: normalizeQuant(g.quant),
+        quantLabel: list.length > 1 ? `${g.quant} (${g.file.split("/").pop()})` : g.quant,
+        weightBytes: size,
+        projectorBytes: mmproj?.size,
+        downloadBytes: size + (mmproj?.size ?? 0),
+        provenance: whole ? ("verified" as const) : ("estimated" as const),
+        source: whole ? "Hugging Face file listing (GGUF)" : `Hugging Face file listing (GGUF, ${g.seen.size} of ${g.parts} parts listed; size scaled up)`,
+        sourceUrl: `https://huggingface.co/${id}`,
+        checkedAt,
+      };
+    }),
   );
 }
 
 export async function resolveHfModel(id: string, checkedAt = new Date().toISOString()): Promise<ModelVariant> {
   const info = await fetchHfModel(id);
   const url = `https://huggingface.co/${info.id}`;
-  const [cfg, tree] = await Promise.all([fetchHfConfig(info.id), fetchHfTree(info.id)]);
+  // The full file list with sizes comes with the model info; the paged tree listing is only a fallback.
+  const siblings = (info.siblings ?? []).map((f) => ({ path: f.rfilename, size: f.size ?? f.lfs?.size }));
+  const haveSizes = siblings.length > 0 && siblings.every((f) => typeof f.size === "number");
+  const [cfg, tree] = await Promise.all([fetchHfConfig(info.id), haveSizes ? Promise.resolve(siblings) : fetchHfTree(info.id)]);
   const total = info.safetensors?.total ?? info.gguf?.total ?? null;
   const arch = cfg ? archFromConfig(cfg, "Hugging Face config.json", url, checkedAt) : null;
   const derived = cfg && total ? deriveActiveParams(cfg, total) : null;
@@ -185,8 +205,8 @@ export async function resolveHfModel(id: string, checkedAt = new Date().toISOStr
   const [org, repo] = info.id.split("/");
   const caps = capabilitiesFromPipeline(info.pipeline_tag, info.tags ?? [], url, checkedAt);
   const artifacts = ggufArtifactsFromTree(info.id, tree, checkedAt);
-  // A full page may mean the listing was cut off: don't present it as complete.
-  if (tree.length >= HF_TREE_PAGE) for (const a of artifacts) a.provenance = "estimated";
+  // Fallback listing: a full page may mean it was cut off, so don't present it as complete.
+  if (!haveSizes && tree.length >= HF_TREE_PAGE) for (const a of artifacts) a.provenance = "estimated";
   return {
     id: `hf:${info.id}`.toLowerCase(),
     family: repo ?? info.id,

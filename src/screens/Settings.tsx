@@ -9,7 +9,7 @@ import type { Field, FormFactor, MemoryArchitecture, ModelVariant } from "../dom
 import { fmtBytes } from "../lib/units";
 import { toCsv } from "../lib/csv";
 import { importSeedCsv } from "../catalog/seedImporter";
-import { sanitizeModel } from "../catalog/validate";
+import { sanitizeBenchmark, sanitizeCapabilityEvidence, sanitizeMap, sanitizeModel, sanitizeVerification } from "../catalog/validate";
 import type { BenchmarkRecord } from "../domain/types";
 import { verifyOllamaVariant } from "../catalog/ollamaOfficial";
 import { modalityLabel } from "../domain/capabilities";
@@ -108,16 +108,20 @@ export function Settings() {
         // Every record is checked and repaired; ones that can't be are skipped.
         const valid = list.map(sanitizeModel).filter((m): m is ModelVariant => !!m);
         valid.forEach((m) => s.addUserModel(m));
-        if (j.liveVerifications && typeof j.liveVerifications === "object")
-          for (const v of Object.values(j.liveVerifications)) if (v && typeof v === "object" && typeof (v as { family?: unknown }).family === "string" && Array.isArray((v as { artifacts?: unknown }).artifacts)) s.saveVerification(v as never);
-        // Benchmarks and capability notes from an export come back too.
-        const benches: BenchmarkRecord[] = Array.isArray(j.benchmarks) ? j.benchmarks.filter((b: BenchmarkRecord) => b && typeof b.id === "string" && typeof b.model === "string" && typeof b.createdAt === "string") : [];
+        for (const v of Object.values(sanitizeMap(j.liveVerifications, sanitizeVerification))) s.saveVerification(v);
+        // Benchmarks and capability notes from an export come back too. Imported measurements are
+        // labelled as such: they were taken on whichever computer made the export.
+        const benches: BenchmarkRecord[] = (Array.isArray(j.benchmarks) ? j.benchmarks : [])
+          .map(sanitizeBenchmark)
+          .filter((b: BenchmarkRecord | null): b is BenchmarkRecord => !!b)
+          .map((b: BenchmarkRecord) => ({ ...b, importedFrom: b.importedFrom ?? f.name }));
         if (benches.length) {
           const have = new Set(useStore.getState().benchmarks.map((b) => b.id));
           useStore.setState({ benchmarks: [...useStore.getState().benchmarks, ...benches.filter((b) => !have.has(b.id))].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 200) });
         }
-        if (j.capabilityEvidence && typeof j.capabilityEvidence === "object" && !Array.isArray(j.capabilityEvidence)) {
-          useStore.setState({ capabilityEvidence: { ...useStore.getState().capabilityEvidence, ...j.capabilityEvidence } });
+        const notes = sanitizeCapabilityEvidence(j.capabilityEvidence);
+        if (Object.keys(notes).length) {
+          useStore.setState({ capabilityEvidence: { ...useStore.getState().capabilityEvidence, ...notes } });
           void s.rebuildCatalog();
         }
         s.showToast(`Imported ${valid.length} model(s)${benches.length ? `, ${benches.length} benchmark(s)` : ""}${list.length - valid.length ? `, skipped ${list.length - valid.length} invalid` : ""}`, valid.length || benches.length ? "good" : "warn");

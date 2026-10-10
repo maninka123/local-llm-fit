@@ -277,4 +277,6 @@ export interface BenchmarkRecord {
   predictedClass?: string;
   predictedTotalBytes?: number;
   notes: string[];
+  /** Set when the record came from an imported file (measured elsewhere, not on this computer). */
+  importedFrom?: string;
 }

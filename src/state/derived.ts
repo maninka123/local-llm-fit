@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { estimate, type Estimate, type MachineProfile } from "../domain/estimator";
 import { buildMachineProfile } from "../domain/hardware";
 import type { BenchmarkRecord, ModelVariant, QuantId } from "../domain/types";
+import { normalizeQuant } from "../domain/quant";
 import { useStore, type QuantChoice } from "./store";
 
 export function quantFor(m: ModelVariant, choice: QuantChoice, perModel: Record<string, QuantId>): QuantId {
@@ -32,13 +33,33 @@ export function useEstimate(m: ModelVariant | undefined, quantOverride?: QuantId
  * The newest measurement that is really for this model file: same name and, when both are
  * known, the same digest and quantization (a re-pulled or different-quant model doesn't count).
  */
-export function latestBenchmark(list: BenchmarkRecord[], m: ModelVariant): BenchmarkRecord | undefined {
+/** What the shown estimate is for; a measurement must match it to be shown next to it. */
+export interface BenchContext {
+  quant?: QuantId;
+  contextTokens?: number;
+  gpuName?: string | null;
+}
+
+export function latestBenchmark(list: BenchmarkRecord[], m: ModelVariant, ctx: BenchContext = {}): BenchmarkRecord | undefined {
   const names = new Set([m.resolvedTag, m.installed?.name, m.id].filter(Boolean) as string[]);
   const same = (b: BenchmarkRecord) =>
     names.has(b.model) &&
+    !b.importedFrom && // measured on another computer
     !(b.digest && m.installed?.digest && b.digest !== m.installed.digest) &&
-    !(b.quantLabel && m.installed?.quantLabel && b.quantLabel !== m.installed.quantLabel);
+    !(b.quantLabel && m.installed?.quantLabel && b.quantLabel !== m.installed.quantLabel) &&
+    !(ctx.quant && b.quantLabel && normalizeQuant(b.quantLabel) !== ctx.quant) &&
+    !(ctx.contextTokens && b.contextTokens !== ctx.contextTokens) &&
+    !(ctx.gpuName && b.gpuName && b.gpuName !== ctx.gpuName);
   return list.find((b) => same(b) && b.kind === "warm") ?? list.find(same);
+}
+
+/** Context length and GPU the current estimates are for. */
+export function useBenchContext(): Omit<BenchContext, "quant"> {
+  const contextTokens = useStore((s) => s.settings.contextTokens);
+  const machine = useMachine();
+  const hwGpu = useStore((s) => s.hardware?.gpus[0]?.name ?? null);
+  const gpuName = machine?.gpus[0]?.name ?? (machine?.arch === "unified" ? hwGpu : null);
+  return useMemo(() => ({ contextTokens, gpuName }), [contextTokens, gpuName]);
 }
 
 const NO_BENCHMARKS: BenchmarkRecord[] = [];

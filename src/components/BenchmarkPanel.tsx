@@ -7,6 +7,7 @@ import type { BenchmarkRecord, ModelVariant } from "../domain/types";
 import { fmtBytes } from "../lib/units";
 import { ollama, sampleMemory, isTauri } from "../platform/bridge";
 import { runBenchmark } from "../platform/ollamaLocal";
+import { normalizeQuant } from "../domain/quant";
 import { Modal } from "./ui";
 
 const PLACEMENT: Record<string, string> = { gpu_100: "100% GPU", mixed: "Mixed CPU/GPU", cpu_100: "100% CPU", unknown: "Unknown" };
@@ -33,7 +34,9 @@ export function BenchmarkPanel({ m, est }: { m: ModelVariant; est: Estimate }) {
   const pullTag = art?.tag ?? m.resolvedTag;
   const sample = hw?.mode === "demo";
   // The test measures the installed file; flag when the estimate above is for another quantization.
-  const otherQuant = !!m.installed?.quantLabel && !!est.artifact && est.artifact.quantLabel !== m.installed.quantLabel ? est.artifact.quantLabel : null;
+  // Also covers hypothetical quantizations that have no published file.
+  const estQuantLabel = est.artifact?.quantLabel ?? est.quant;
+  const otherQuant = !!m.installed?.quantLabel && normalizeQuant(estQuantLabel) !== normalizeQuant(m.installed.quantLabel) ? estQuantLabel : null;
 
   const run = async () => {
     if (!name) return;
@@ -237,6 +240,7 @@ export function ResultsTable({ rows, est }: { rows: BenchmarkRecord[]; est?: Est
                 <b>{b.kind}</b>
                 <div className="faint" style={{ fontSize: 13 }}>
                   {new Date(b.createdAt).toLocaleString()} · {b.quantLabel ?? ""} · {b.contextTokens / 1024}K
+                  {b.importedFrom ? ` · imported from ${b.importedFrom}` : ""}
                 </div>
               </td>
               <td className="num">

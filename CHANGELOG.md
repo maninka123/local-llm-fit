@@ -2,6 +2,12 @@
 
 Short, user-facing notes. The section for each version is shown in the app's update window.
 
+## 1.1.1
+- Playground: your memory boxes now keep their size as the model grows, on every machine
+- Hugging Face: file sizes come from the complete file list, and split files are counted correctly
+- Measured speeds show only for the same quantization, context length and GPU; imported results are labelled
+- Imported and saved data is fully checked, so a bad file can't break the app
+
 ## 1.1.0
 - More accurate sizes: 55 catalog files in Ollama's newer format showed 0 bytes; they now have their real sizes
 - Speed guesses now slow down for long conversations, and very slow full-GPU fits move to "Runs, but slower"

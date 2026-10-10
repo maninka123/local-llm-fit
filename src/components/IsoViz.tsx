@@ -288,8 +288,10 @@ export function IsoViz({ est, machine }: { est: Estimate; machine: MachineProfil
   const drawW = (side: number) => 2 * side * U * C + 20;
   const COL_MIN = 190; // captions wrap within this width (see .iso-col max-width)
   const ARROW = 72;
+  // Room is always kept for the biggest model cube, so the scale (and the size of your memory
+  // boxes on screen) doesn't change as the model grows.
   const natural =
-    Math.max(drawW(cubeSide), COL_MIN) + containers.reduce((a, c) => a + Math.max(drawW(c.side), COL_MIN), 0) + ARROW * containers.length + 8 * containers.length * 2 + 8;
+    Math.max(drawW(Math.max(cubeSide, Math.ceil(Math.cbrt(MAX_MODEL_BLOCKS)))), COL_MIN) + containers.reduce((a, c) => a + Math.max(drawW(c.side), COL_MIN), 0) + ARROW * containers.length + 8 * containers.length * 2 + 8;
   const estimateScale = avail > 0 ? Math.max(0.4, Math.min(1, avail / natural)) : 1;
   // Correct the estimate against the real layout: shrink until nothing overflows.
   const rowRef = useRef<HTMLDivElement>(null);

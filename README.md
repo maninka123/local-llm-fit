@@ -58,7 +58,7 @@ npm version 1.1.0      # updates the version and creates the tag v1.1.0
 git push --follow-tags
 ```
 
-The tag starts `.github/workflows/release.yml`, which builds Windows, macOS (Apple Silicon + Intel) and Linux (x64 + ARM64), signs the update bundles with the `TAURI_SIGNING_PRIVATE_KEY` repository secret and uploads everything to a draft release. Only when every platform has built does it publish the release and its `latest.json`, so nobody downloads (or auto-updates to) a half-finished release. Installed apps then offer the update automatically. To rebuild an existing tag by hand, run the workflow from the Actions tab and enter the tag (e.g. `v1.1.0`). The private key must stay secret and backed up: without it, existing installs can't verify new updates.
+The tag starts `.github/workflows/release.yml`: it builds Windows, macOS and Linux (x64 + ARM64), signs the updates with the `TAURI_SIGNING_PRIVATE_KEY` secret, and publishes the release once every platform is done. Installed apps then update automatically. Keep the private key secret and backed up, or existing installs can't verify new updates.
 
 ## How the estimate works
 

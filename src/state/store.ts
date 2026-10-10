@@ -9,6 +9,7 @@ import type { BenchmarkRecord, CapEvidence, HardwareOverrides, HardwareReport, I
 import { EMPTY_OVERRIDES } from "../domain/types";
 import { addEvidence } from "../domain/capabilities";
 import { DEMO_MACHINES } from "../platform/demoHardware";
+import { sanitizeBenchmark, sanitizeCapabilityEvidence, sanitizeMap, sanitizeModel, sanitizeVerification } from "../catalog/validate";
 import { buildSample, presetConfig, sampleOverrides, type SampleConfig } from "../platform/samples";
 import { buildBrowserReport, detectBrowser, suggestSetup, type BrowserSetup, type BrowserSignals } from "../platform/browserDetect";
 import { isTauri, ollama, probeHardware } from "../platform/bridge";
@@ -371,6 +372,11 @@ export const useStore = create<State>()(
       }),
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<Persisted>;
+        // Saved data is re-checked on every start, so a bad record can't break the app.
+        if (p.benchmarks) p.benchmarks = (Array.isArray(p.benchmarks) ? p.benchmarks : []).map(sanitizeBenchmark).filter((b): b is BenchmarkRecord => !!b);
+        if (p.userModels) p.userModels = (Array.isArray(p.userModels) ? p.userModels : []).map(sanitizeModel).filter((m): m is ModelVariant => !!m);
+        if (p.liveVerifications) p.liveVerifications = sanitizeMap(p.liveVerifications, sanitizeVerification);
+        if (p.capabilityEvidence) p.capabilityEvidence = sanitizeCapabilityEvidence(p.capabilityEvidence);
         return { ...current, ...p, settings: { ...DEFAULT_SETTINGS, ...(p.settings ?? {}), reserves: { ...DEFAULT_SETTINGS.reserves, ...(p.settings?.reserves ?? {}) } }, overrides: { ...EMPTY_OVERRIDES, ...(p.overrides ?? {}) } };
       },
     },

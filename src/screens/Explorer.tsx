@@ -3,7 +3,7 @@ import { Select } from "../components/Select";
 import { create } from "zustand";
 import { Columns3, Search, SlidersHorizontal, SearchX, Check, Download } from "lucide-react";
 import { useStore, type QuantChoice } from "../state/store";
-import { latestBenchmark, useMeasuredBenchmarks, quantFor, useMachine } from "../state/derived";
+import { latestBenchmark, useMeasuredBenchmarks, useBenchContext, quantFor, useMachine } from "../state/derived";
 import { acceptsInputs, matchesCapFilter, type CapFilter } from "../domain/capabilities";
 import { CLASS_META, estimate, type Estimate } from "../domain/estimator";
 import { BUCKETS, bucketFor, recommend, type Bucket, type Recommendation } from "../domain/recommend";
@@ -320,7 +320,8 @@ export function ModelCard({ m, e, rec, rank }: { m: ModelVariant; e: Estimate; r
   const toggleCompare = useStore((s) => s.toggleCompare);
   const benches = useMeasuredBenchmarks();
   const inCompare = compare.includes(m.id);
-  const bench = latestBenchmark(benches, m);
+  const benchCtx = useBenchContext();
+  const bench = latestBenchmark(benches, m, { ...benchCtx, quant: e.quant });
   const p = e.pools;
   const cap = p.arch === "discrete" ? p.vramUsable : p.arch === "unified" ? Math.min(p.unifiedGpuLimit ?? Infinity, p.ramUsable ?? Infinity) : p.ramUsable;
   const need = e.totalNeed?.mid ?? null;
