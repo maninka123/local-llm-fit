@@ -28,13 +28,13 @@ function b64ToBytes(b64: string): Uint8Array {
 }
 
 const tauriTransport: Transport = async (req) => {
-  const r = await invoke<{ status: number; text?: string; bytesB64?: string }>("http_get", {
+  const r = await invoke<{ status: number; text?: string; bytesB64?: string; link?: string }>("http_get", {
     url: req.url,
     accept: req.accept ?? null,
     rangeEnd: req.rangeEnd ?? null,
     binary: !!req.binary,
   });
-  return { status: r.status, text: r.text ?? undefined, bytes: r.bytesB64 ? b64ToBytes(r.bytesB64) : undefined };
+  return { status: r.status, text: r.text ?? undefined, bytes: r.bytesB64 ? b64ToBytes(r.bytesB64) : undefined, link: r.link ?? undefined };
 };
 
 const PROXY: [string, string][] = [

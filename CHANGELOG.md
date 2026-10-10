@@ -2,6 +2,11 @@
 
 Short, user-facing notes. The section for each version is shown in the app's update window.
 
+## 1.1.2
+- Restoring a backup keeps every file's quantization
+- Benchmark results are compared with the estimate only when the settings match
+- Hugging Face: very large repositories are read in full
+
 ## 1.1.1
 - Playground: your memory boxes now keep their size as the model grows, on every machine
 - Hugging Face: file sizes come from the complete file list, and split files are counted correctly

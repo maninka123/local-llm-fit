@@ -7,8 +7,9 @@ import { EMPTY_OVERRIDES, type BenchmarkRecord } from "./types";
 import { ARCH_8B, artifact, discrete, model, settings } from "./testkit";
 import { GB, GiB } from "../lib/units";
 import { parseManifest } from "../catalog/ollamaOfficial";
-import { ggufArtifactsFromTree } from "../catalog/huggingface";
-import { sanitizeBenchmark, sanitizeCapabilityEvidence, sanitizeModel, sanitizeVerification } from "../catalog/validate";
+import { fetchHfTree, ggufArtifactsFromTree } from "../catalog/huggingface";
+import { sanitizeArtifact, sanitizeBenchmark, sanitizeCapabilityEvidence, sanitizeModel, sanitizeVerification } from "../catalog/validate";
+import { fetchTransport, nextLink, setTransport } from "../catalog/net";
 import { latestBenchmark } from "../state/derived";
 import { buildSample } from "../platform/samples";
 
@@ -148,5 +149,34 @@ describe("second review", () => {
     expect(latestBenchmark([b], m, { ...ctx, contextTokens: 32768 })).toBeUndefined();
     expect(latestBenchmark([b], m, { ...ctx, gpuName: "RTX 3060" })).toBeUndefined();
     expect(latestBenchmark([{ ...b, importedFrom: "backup.json" }], m, ctx)).toBeUndefined();
+  });
+});
+
+describe("third review", () => {
+  it("restoring a file keeps its saved quantization even when the label has a file name", () => {
+    const a = sanitizeArtifact({ quant: "Q4_K_M", quantLabel: "Q4_K_M (small-Q4_K_M.gguf)", weightBytes: 4 * GB, provenance: "verified", source: "x" })!;
+    expect(a.quant).toBe("Q4_K_M");
+    expect(a.quantLabel).toBe("Q4_K_M (small-Q4_K_M.gguf)");
+  });
+  it("reads the next page from a Link header", () => {
+    expect(nextLink('<https://huggingface.co/api/models/a/b/tree/main?cursor=xyz>; rel="next"')).toBe("https://huggingface.co/api/models/a/b/tree/main?cursor=xyz");
+    expect(nextLink(undefined)).toBeNull();
+  });
+  it("the fallback file listing follows every page, and says when it couldn't finish", async () => {
+    const pages: Record<string, { text: string; link?: string }> = {
+      "https://huggingface.co/api/models/a/b/tree/main?recursive=true": { text: JSON.stringify([{ path: "m-Q4_K_M-00001-of-00002.gguf", size: 2 }]), link: '<https://huggingface.co/api/models/a/b/tree/main?cursor=2>; rel="next"' },
+      "https://huggingface.co/api/models/a/b/tree/main?cursor=2": { text: JSON.stringify([{ path: "m-Q4_K_M-00002-of-00002.gguf", size: 2 }]) },
+    };
+    setTransport(async (req) => (pages[req.url] ? { status: 200, ...pages[req.url] } : { status: 500 }));
+    try {
+      const full = await fetchHfTree("a/b");
+      expect(full.files).toHaveLength(2);
+      expect(full.complete).toBe(true);
+      delete pages["https://huggingface.co/api/models/a/b/tree/main?cursor=2"];
+      const cut = await fetchHfTree("a/b");
+      expect(cut.complete).toBe(false);
+    } finally {
+      setTransport(fetchTransport());
+    }
   });
 });

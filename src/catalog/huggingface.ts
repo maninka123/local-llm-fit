@@ -1,7 +1,7 @@
 import { addEvidence, emptyCapabilities } from "../domain/capabilities";
 import { normalizeQuant } from "../domain/quant";
 import type { Artifact, ArchMeta, Capabilities, CapEvidence, ModelVariant } from "../domain/types";
-import { httpJson } from "./net";
+import { httpJson, httpJsonPage } from "./net";
 import { cleanText, safeModelName } from "./sanitize";
 import { useCasesFor } from "./families";
 
@@ -49,15 +49,26 @@ export async function fetchHfConfig(id: string): Promise<HfConfig | null> {
   }
 }
 
-/** The listing API returns at most this many entries per page. */
-export const HF_TREE_PAGE = 1000;
+/** Pages followed before giving up (a page holds up to 1,000 entries). */
+export const HF_TREE_MAX_PAGES = 30;
 
-export async function fetchHfTree(id: string): Promise<{ path: string; size?: number; type?: string }[]> {
-  try {
-    return await httpJson(`https://huggingface.co/api/models/${id}/tree/main?recursive=true`);
-  } catch {
-    return [];
+/**
+ * Fallback file listing (when the model info lacks sizes). Follows every page via the Link
+ * header; `complete` is false when a page failed or the page limit was reached.
+ */
+export async function fetchHfTree(id: string): Promise<{ files: { path: string; size?: number; type?: string }[]; complete: boolean }> {
+  const files: { path: string; size?: number; type?: string }[] = [];
+  let url: string | null = `https://huggingface.co/api/models/${id}/tree/main?recursive=true`;
+  for (let page = 0; url && page < HF_TREE_MAX_PAGES; page++) {
+    try {
+      const r: { data: { path: string; size?: number; type?: string }[]; next: string | null } = await httpJsonPage(url);
+      if (Array.isArray(r.data)) files.push(...r.data);
+      url = r.next;
+    } catch {
+      return { files, complete: false };
+    }
   }
+  return { files, complete: url == null };
 }
 
 const n = (v: unknown): number | undefined => (typeof v === "number" && Number.isFinite(v) ? v : undefined);
@@ -197,7 +208,8 @@ export async function resolveHfModel(id: string, checkedAt = new Date().toISOStr
   // The full file list with sizes comes with the model info; the paged tree listing is only a fallback.
   const siblings = (info.siblings ?? []).map((f) => ({ path: f.rfilename, size: f.size ?? f.lfs?.size }));
   const haveSizes = siblings.length > 0 && siblings.every((f) => typeof f.size === "number");
-  const [cfg, tree] = await Promise.all([fetchHfConfig(info.id), haveSizes ? Promise.resolve(siblings) : fetchHfTree(info.id)]);
+  const [cfg, listing] = await Promise.all([fetchHfConfig(info.id), haveSizes ? Promise.resolve({ files: siblings, complete: true }) : fetchHfTree(info.id)]);
+  const tree = listing.files;
   const total = info.safetensors?.total ?? info.gguf?.total ?? null;
   const arch = cfg ? archFromConfig(cfg, "Hugging Face config.json", url, checkedAt) : null;
   const derived = cfg && total ? deriveActiveParams(cfg, total) : null;
@@ -205,8 +217,8 @@ export async function resolveHfModel(id: string, checkedAt = new Date().toISOStr
   const [org, repo] = info.id.split("/");
   const caps = capabilitiesFromPipeline(info.pipeline_tag, info.tags ?? [], url, checkedAt);
   const artifacts = ggufArtifactsFromTree(info.id, tree, checkedAt);
-  // Fallback listing: a full page may mean it was cut off, so don't present it as complete.
-  if (!haveSizes && tree.length >= HF_TREE_PAGE) for (const a of artifacts) a.provenance = "estimated";
+  // A listing that couldn't be read to the end isn't presented as complete.
+  if (!listing.complete) for (const a of artifacts) a.provenance = "estimated";
   return {
     id: `hf:${info.id}`.toLowerCase(),
     family: repo ?? info.id,

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { AlertTriangle, Download, Gauge, Play, Trash2 } from "lucide-react";
 import { useStore } from "../state/store";
-import { useMachine } from "../state/derived";
+import { latestBenchmark, useBenchContext, useMachine } from "../state/derived";
 import { CLASS_META, type Estimate } from "../domain/estimator";
 import type { BenchmarkRecord, ModelVariant } from "../domain/types";
 import { fmtBytes } from "../lib/units";
@@ -28,6 +28,9 @@ export function BenchmarkPanel({ m, est }: { m: ModelVariant; est: Estimate }) {
 
   const name = m.installed?.name;
   const mine = benches.filter((b) => b.model === name || b.model === m.resolvedTag);
+  // Only a result taken with the same file, quantization, context and GPU is compared with the estimate.
+  const benchCtx = useBenchContext();
+  const comparable = latestBenchmark(mine, m, { ...benchCtx, quant: est.quant });
   const canPull = ol.status === "online" && !m.installed && !!(est.artifact?.tag ?? m.resolvedTag) && !m.cloudOnly;
   // The file the estimate describes is the one offered for download.
   const art = est.artifact ?? m.artifacts.find((a) => a.isDefaultTag);
@@ -142,7 +145,7 @@ export function BenchmarkPanel({ m, est }: { m: ModelVariant; est: Estimate }) {
           </div>
         </div>
       )}
-      {mine.length > 0 && <ResultsTable rows={mine.slice(0, 6)} est={est} />}
+      {mine.length > 0 && <ResultsTable rows={mine.slice(0, 6)} est={est} compare={comparable} />}
       {consent && (
         <Modal title="Run a local benchmark?" onClose={() => setConsent(false)}>
           <div className="stack">
@@ -213,7 +216,7 @@ export function BenchmarkPanel({ m, est }: { m: ModelVariant; est: Estimate }) {
   );
 }
 
-export function ResultsTable({ rows, est }: { rows: BenchmarkRecord[]; est?: Estimate }) {
+export function ResultsTable({ rows, est, compare }: { rows: BenchmarkRecord[]; est?: Estimate; compare?: BenchmarkRecord }) {
   const clear = useStore((s) => s.clearBenchmarks);
   const s = (ns?: number) => (ns != null ? `${(ns / 1e9).toFixed(2)} s` : "—");
   const delta = (peak?: number, base?: number) => (peak != null && base != null ? fmtBytes(Math.max(0, peak - base)) : "—");
@@ -263,10 +266,14 @@ export function ResultsTable({ rows, est }: { rows: BenchmarkRecord[]; est?: Est
       {est && rows[0] && (
         <div className="row" style={{ marginTop: 10, fontSize: 14.5 }}>
           <Gauge size={15} />
-          <span className="muted">
-            Predicted: <b>{CLASS_META[est.classification].title}</b>, ≈ {fmtBytes(est.totalNeed?.mid ?? null)} total. Ollama reported: <b>{PLACEMENT[rows[0].placement ?? "unknown"]}</b>
-            {rows[0].residentBytes ? `, ${fmtBytes(rows[0].residentBytes)} resident` : ""}.
-          </span>
+          {compare ? (
+            <span className="muted">
+              Predicted: <b>{CLASS_META[est.classification].title}</b>, ≈ {fmtBytes(est.totalNeed?.mid ?? null)} total. Ollama reported: <b>{PLACEMENT[compare.placement ?? "unknown"]}</b>
+              {compare.residentBytes ? `, ${fmtBytes(compare.residentBytes)} resident` : ""} ({new Date(compare.createdAt).toLocaleDateString()} run).
+            </span>
+          ) : (
+            <span className="muted">No result above matches the current quantization, context length and GPU, so there's nothing to compare the estimate with yet.</span>
+          )}
           <span className="spacer" />
           <button className="btn ghost sm" onClick={clear} title="Delete all stored benchmark results">
             <Trash2 size={13} /> Clear results

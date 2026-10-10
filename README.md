@@ -10,11 +10,11 @@
 
 ## What it does
 
-- **Playground.** Drag the model size, switch between dense and Mixture-of-Experts, pick precision, context, images and people chatting at once. The model is drawn as a cube of memory blocks (the active part glows) that fills your VRAM and RAM. Offload and "doesn't fit" are shown as they happen.
-- **What can I run.** Every model in a 430+ variant catalog is sorted into *Runs well · Runs, but slower · Tight fit · Won't run* and ranked best-first using size, popularity, recency, features and fit (each card says why).
-- **Try a specific model.** Search Ollama or Hugging Face, paste a link, or type the details. See compatibility instantly, then save it to your catalog.
-- **Honest estimates.** Exact file sizes, layers and KV heads come from the official Ollama registry. Apple Silicon is treated as one unified pool, Windows "shared GPU memory" is never counted as VRAM, and speed is never invented. A local benchmark (through Ollama, only when you click) measures real tokens per second.
-- **Sample machines** to explore without your own hardware: build a desktop or workstation (pick the graphics card, its memory size and 1 or 2 cards), a gaming laptop (pick the laptop GPU), a Mac (pick the model, then a chip it really ships with and that chip's memory sizes), an office laptop, or a single-board / edge AI device (Raspberry Pi 4/5, Orange Pi 5 Plus, Jetson Nano, Orin Nano Super, Orin NX, AGX Orin, AGX Thor, DGX Spark).
+- **Playground.** Set a model's size, type (dense or Mixture-of-Experts), precision and context, and watch its memory blocks fill your VRAM and RAM.
+- **What can I run.** 430+ models sorted into *Runs well · Runs, but slower · Tight fit · Won't run*, best first, each with a reason.
+- **Try a specific model.** Search Ollama or Hugging Face, or paste a link, and see if it fits.
+- **Honest estimates.** Real file sizes from the Ollama registry; Apple unified memory and Windows shared memory handled correctly; speed shown as a labelled guess, or measured with a local benchmark when you ask.
+- **Sample machines.** Desktops, laptops, Macs, and boards like Raspberry Pi and Jetson, each adjustable.
 - **Light, dark or system theme**, keyboard and reduced-motion friendly.
 
 ![Where a model would live on a 16 GB GPU](docs/screenshots/detail-moe.png)

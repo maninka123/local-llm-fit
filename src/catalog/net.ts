@@ -13,6 +13,8 @@ export interface HttpRequest {
 
 export interface HttpResponse {
   status: number;
+  /** Raw Link header (pagination), when the server sent one. */
+  link?: string;
   text?: string;
   bytes?: Uint8Array;
 }
@@ -68,7 +70,7 @@ export const fetchTransport =
         }
         return { status: res.status, bytes: out };
       }
-      return { status: res.status, text: await res.text() };
+      return { status: res.status, text: await res.text(), link: res.headers.get("link") ?? undefined };
     } finally {
       clearTimeout(timer);
     }
@@ -89,6 +91,20 @@ export async function httpText(url: string, accept?: string): Promise<string> {
 export async function httpJson<T>(url: string, accept?: string): Promise<T> {
   const t = await httpText(url, accept ?? "application/json");
   return JSON.parse(t) as T;
+}
+
+/** URL of the next page from a Link header (`<…>; rel="next"`), if any. */
+export function nextLink(link: string | undefined): string | null {
+  const m = link ? /<([^>]+)>\s*;\s*rel="?next"?/i.exec(link) : null;
+  return m ? m[1] : null;
+}
+
+/** One page of JSON plus the next page's URL. */
+export async function httpJsonPage<T>(url: string): Promise<{ data: T; next: string | null }> {
+  assertAllowedUrl(url);
+  const r = await transport({ url, accept: "application/json" });
+  if (r.status < 200 || r.status >= 300) throw new Error(`HTTP ${r.status} for ${url}`);
+  return { data: JSON.parse(r.text ?? "null") as T, next: nextLink(r.link) };
 }
 
 export async function httpBytes(url: string, rangeEnd: number): Promise<Uint8Array> {

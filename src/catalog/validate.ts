@@ -57,8 +57,10 @@ export function sanitizeArtifact(x: unknown): Artifact | null {
   const weight = finite(x.weightBytes);
   if (weight == null || weight < 0) return null;
   const label = str(x.quantLabel, x.quant);
+  // Prefer the saved quantization; labels can carry a file name, e.g. "Q4_K_M (small-Q4_K_M.gguf)".
+  const saved = normalizeQuant(x.quant);
   return {
-    quant: normalizeQuant(label),
+    quant: saved !== "OTHER" ? saved : normalizeQuant(label),
     quantLabel: label,
     tag: optStr(x.tag),
     digest: optStr(x.digest),

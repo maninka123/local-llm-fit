@@ -91,6 +91,8 @@ struct HttpOut {
     status: u16,
     text: Option<String>,
     bytes_b64: Option<String>,
+    /// Link header, for paginated listings (the next URL is re-checked before it's fetched).
+    link: Option<String>,
 }
 
 #[tauri::command]
@@ -110,6 +112,7 @@ async fn http_get(url: String, accept: Option<String>, range_end: Option<u64>, b
     };
     let res = req.send().await.map_err(|e| e.to_string())?;
     let status = res.status().as_u16();
+    let link = res.headers().get(reqwest::header::LINK).and_then(|v| v.to_str().ok()).map(String::from);
     let mut stream = res.bytes_stream();
     let mut buf: Vec<u8> = Vec::new();
     while let Some(chunk) = stream.next().await {
@@ -121,9 +124,9 @@ async fn http_get(url: String, accept: Option<String>, range_end: Option<u64>, b
         }
     }
     if binary.unwrap_or(false) {
-        Ok(HttpOut { status, text: None, bytes_b64: Some(base64::engine::general_purpose::STANDARD.encode(&buf)) })
+        Ok(HttpOut { status, text: None, bytes_b64: Some(base64::engine::general_purpose::STANDARD.encode(&buf)), link })
     } else {
-        Ok(HttpOut { status, text: Some(String::from_utf8_lossy(&buf).into_owned()), bytes_b64: None })
+        Ok(HttpOut { status, text: Some(String::from_utf8_lossy(&buf).into_owned()), bytes_b64: None, link })
     }
 }
 
