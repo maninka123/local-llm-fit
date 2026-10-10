@@ -62,6 +62,8 @@ interface State extends Persisted {
   hardwareStatus: "idle" | "probing" | "ready" | "error";
   hardwareError?: string;
   browserSignals: BrowserSignals | null;
+  /** Desktop: last real hardware probe (kept while a sample machine is shown). */
+  nativeReport: HardwareReport | null;
   setupOpen: boolean;
   tryOpen: boolean;
   catalog: Map<string, ModelVariant>;
@@ -177,6 +179,7 @@ export const useStore = create<State>()(
 
       route: routeFromHash(),
       browserSignals: null,
+      nativeReport: null,
       setupOpen: false,
       tryOpen: false,
       hardware: null,
@@ -204,19 +207,21 @@ export const useStore = create<State>()(
       async rescanHardware() {
         set({ hardwareStatus: "probing", hardwareError: undefined });
         try {
+          if (get().webHardware === "demo") {
+            const demo = DEMO_MACHINES.find((d) => d.id === get().demoId) ?? DEMO_MACHINES[0];
+            set({ hardware: { ...demo.report, mode: "demo", detectedAt: new Date().toISOString() }, hardwareStatus: "ready" });
+            if (isTauri() && !get().nativeReport) void probeHardware().then((r) => r && set({ nativeReport: { ...r, mode: "native" } }));
+            return;
+          }
           if (!isTauri()) {
-            if (get().webHardware === "demo") {
-              const demo = DEMO_MACHINES.find((d) => d.id === get().demoId) ?? DEMO_MACHINES[0];
-              set({ hardware: { ...demo.report, mode: "demo", detectedAt: new Date().toISOString() }, hardwareStatus: "ready" });
-              return;
-            }
             const sig = await detectBrowser();
             const setup = get().browserSetup ?? suggestSetup(sig);
             set({ browserSignals: sig, hardware: buildBrowserReport(sig, setup), hardwareStatus: "ready" });
             return;
           }
           const r = await probeHardware();
-          set({ hardware: r, hardwareStatus: "ready" });
+          const native = r ? { ...r, mode: "native" as const } : null;
+          set({ hardware: native, nativeReport: native, hardwareStatus: "ready" });
         } catch (e) {
           set({ hardwareStatus: "error", hardwareError: String((e as Error).message ?? e) });
         }

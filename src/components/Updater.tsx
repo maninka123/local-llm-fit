@@ -40,6 +40,8 @@ export const useUpdater = create<UpdaterState>((set) => ({
   set: (p) => set(p),
 }));
 
+if (import.meta.env.DEV && typeof window !== "undefined") (window as unknown as { __updater: typeof useUpdater }).__updater = useUpdater;
+
 export async function checkForUpdates(manual: boolean) {
   if (!isTauri()) return;
   const u = useUpdater.getState();
@@ -124,7 +126,7 @@ export function UpdateDialog() {
                 </div>
               </div>
             </div>
-            {u.update.body && <div className="release-notes">{u.update.body.split(/\n## Which file/)[0].trim()}</div>}
+            {u.update.body && <ReleaseNotes text={u.update.body} />}
             {busy && (
               <div className="stack" style={{ gap: 8 }}>
                 <div className="progress big" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(pct)}>
@@ -157,5 +159,35 @@ export function UpdateDialog() {
         )}
       </div>
     </Modal>
+  );
+}
+
+/** Turns release notes into a clean "What's new" list (no raw markdown, no download tables). */
+export function parseReleaseNotes(text: string): string[] {
+  const main = text.split(/\n#{1,3}\s*(Which file|What are the other files)/i)[0];
+  return main
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => /^([-*•])\s+/.test(l))
+    .map((l) => l.replace(/^([-*•])\s+/, "").replace(/\*\*|`/g, "").trim())
+    .filter(Boolean)
+    .slice(0, 8);
+}
+
+function ReleaseNotes({ text }: { text: string }) {
+  const items = parseReleaseNotes(text);
+  if (!items.length) return null;
+  return (
+    <div className="whats-new">
+      <div className="eyebrow">What's new</div>
+      <ul>
+        {items.map((it, i) => (
+          <li key={i} style={{ animationDelay: `${i * 50}ms` }}>
+            <CheckCircle2 size={17} />
+            <span>{it}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }

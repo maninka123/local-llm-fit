@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Apple, CheckCircle2, Cpu, Download, FlaskConical, HelpCircle, Laptop, Monitor, Sparkles } from "lucide-react";
 import { useStore } from "../state/store";
 import { detectBrowser, suggestSetup, type BrowserSetup } from "../platform/browserDetect";
+import { isTauri } from "../platform/bridge";
 import { APPLE_CHIPS, COMMON_RAM_GB, lookupGpu } from "../platform/gpuSpecs";
 import { GpuCombobox } from "./GpuCombobox";
 import { Modal, Seg } from "./ui";
@@ -19,7 +20,7 @@ function SetupForm({ onDone }: { onDone?: () => void }) {
   const sig = useStore((s) => s.browserSignals);
   useEffect(() => {
     // Sample mode skips detection; detect now so "My computer" can be pre-filled.
-    if (!sig) void detectBrowser().then((d) => useStore.setState({ browserSignals: d }));
+    if (!sig && !isTauri()) void detectBrowser().then((d) => useStore.setState({ browserSignals: d }));
   }, [sig]);
   return (
     <div className="stack" style={{ gap: 20 }}>
@@ -31,7 +32,7 @@ function SetupForm({ onDone }: { onDone?: () => void }) {
           <FlaskConical size={18} /> Sample machine
         </button>
       </div>
-      {mode === "mine" ? <MineForm onDone={onDone} /> : <SamplePicker onDone={onDone} />}
+      {mode === "mine" ? isTauri() ? <DetectedForm onDone={onDone} /> : <MineForm onDone={onDone} /> : <SamplePicker onDone={onDone} />}
     </div>
   );
 }
@@ -77,23 +78,7 @@ function SamplePicker({ onDone }: { onDone?: () => void }) {
   };
 
   const numberField = (label: string, value: number | null, set: (v: number) => void, hint: string, changed: boolean) => (
-    <label className="field">
-      <span className="row" style={{ justifyContent: "space-between" }}>
-        {label}
-        {changed && <span className="src-tag manual">Changed</span>}
-      </span>
-      <div className="stepper">
-        <button type="button" aria-label={`Less ${label}`} onClick={() => set(Math.max(1, (value ?? 0) - 1))}>
-          −
-        </button>
-        <input className="input" type="number" min={1} max={1024} step={1} value={value ?? ""} onChange={(e) => set(Math.max(1, +e.target.value || 1))} aria-label={label} />
-        <span className="unit">GB</span>
-        <button type="button" aria-label={`More ${label}`} onClick={() => set((value ?? 0) + 1)}>
-          +
-        </button>
-      </div>
-      <span className="field-hint">{hint}</span>
-    </label>
+    <MemoryStepper label={label} value={value} onChange={set} hint={hint} changed={changed} />
   );
 
   return (
@@ -136,6 +121,118 @@ function SamplePicker({ onDone }: { onDone?: () => void }) {
         {(ram !== baseRam || vram !== baseVram) && (
           <button className="btn ghost" onClick={() => pick(sel)}>
             Reset values
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function MemoryStepper({ label, value, onChange, hint, changed, changedText = "Changed" }: { label: string; value: number | null; onChange: (v: number) => void; hint: string; changed: boolean; changedText?: string }) {
+  return (
+    <label className="field">
+      <span className="row" style={{ justifyContent: "space-between" }}>
+        {label}
+        {changed && <span className="src-tag manual">{changedText}</span>}
+      </span>
+      <div className="stepper">
+        <button type="button" aria-label={`Less ${label}`} onClick={() => onChange(Math.max(1, (value ?? 0) - 1))}>
+          −
+        </button>
+        <input className="input" type="number" min={1} max={1024} step={1} value={value ?? ""} onChange={(e) => onChange(Math.max(1, +e.target.value || 1))} aria-label={label} />
+        <span className="unit">GB</span>
+        <button type="button" aria-label={`More ${label}`} onClick={() => onChange((value ?? 0) + 1)}>
+          +
+        </button>
+      </div>
+      <span className="field-hint">{hint}</span>
+    </label>
+  );
+}
+
+/** Desktop: show what was detected and let the user adjust it (stored as overrides). */
+function DetectedForm({ onDone }: { onDone?: () => void }) {
+  const native = useStore((s) => s.nativeReport);
+  const overrides = useStore((s) => s.overrides);
+  const webHardware = useStore((s) => s.webHardware);
+  if (!native) return <p className="muted">Reading your hardware…</p>;
+  return <DetectedFormInner native={native} overrides={webHardware === "demo" ? null : overrides} onDone={onDone} />;
+}
+
+function DetectedFormInner({ native, overrides, onDone }: { native: import("../domain/types").HardwareReport; overrides: import("../domain/types").HardwareOverrides | null; onDone?: () => void }) {
+  const unified = native.memoryArchitecture.value === "unified";
+  const gpu = native.gpus.find((g) => g.kind === "discrete" && g.dedicatedBytes.value);
+  const detVram = gpu?.dedicatedBytes.value ? Math.round(gpu.dedicatedBytes.value / GiB) : null;
+  const detRam = Math.round((native.memory.totalBytes.value ?? 0) / GiB);
+  const [vram, setVram] = useState<number | null>(overrides?.vramTotalGiB ?? detVram);
+  const [ram, setRam] = useState<number>(overrides?.ramTotalGiB ?? detRam);
+  const changed = ram !== detRam || (vram != null && vram !== detVram);
+
+  const apply = () => {
+    const st = useStore.getState();
+    const o: Partial<import("../domain/types").HardwareOverrides> = { ramTotalGiB: null, ramFreeGiB: null, vramTotalGiB: null, vramFreeGiB: null };
+    if (ram !== detRam) {
+      // keep what apps use today; the rest of the new total counts as free
+      const used = ((native.memory.totalBytes.value ?? 0) - (native.memory.availableBytes.value ?? 0)) / GiB;
+      o.ramTotalGiB = ram;
+      o.ramFreeGiB = Math.max(1, Math.round((ram - used) * 10) / 10);
+    }
+    if (gpu && vram != null && vram !== detVram) {
+      const used = ((gpu.dedicatedBytes.value ?? 0) - (gpu.freeBytes.value ?? gpu.dedicatedBytes.value ?? 0)) / GiB;
+      o.vramTotalGiB = vram;
+      o.vramFreeGiB = Math.max(0.5, Math.round((vram - used) * 10) / 10);
+    }
+    useStore.setState({ webHardware: "browser", hardware: native });
+    st.setOverrides(o);
+    st.setSetupOpen(false);
+    onDone?.();
+    st.showToast(changed ? "Showing your computer, with your changes" : "Showing your computer", "info");
+  };
+
+  return (
+    <div className="stack appear" style={{ gap: 18 }}>
+      <div className="setup-detected">
+        <div className="eyebrow">Detected on this computer</div>
+        <div className="row" style={{ gap: 18, marginTop: 6 }}>
+          <span className="row" style={{ gap: 6 }}>
+            <Sparkles size={15} /> <b>{native.gpus[0]?.name ?? "No graphics card"}</b>
+          </span>
+          <span className="row" style={{ gap: 6 }}>
+            <Cpu size={15} /> {native.cpu.brand}
+          </span>
+          <span className="row" style={{ gap: 6 }}>
+            <Monitor size={15} /> {native.os.name} {native.os.version}
+          </span>
+        </div>
+      </div>
+      <div className="setup-step">
+        <div className="setup-q">
+          <span className="step-num">✎</span> Try different values (optional)
+        </div>
+        <div className="grid cols-2" style={{ gap: 16 }}>
+          {unified ? (
+            <MemoryStepper label="Unified memory" value={ram} onChange={setRam} hint={`Detected: ${detRam} GB`} changed={ram !== detRam} />
+          ) : (
+            <>
+              {gpu && <MemoryStepper label="Graphics memory (VRAM)" value={vram} onChange={(v) => setVram(v)} hint={`Detected: ${detVram} GB`} changed={vram !== detVram} />}
+              <MemoryStepper label="System memory (RAM)" value={ram} onChange={setRam} hint={`Detected: ${detRam} GB`} changed={ram !== detRam} />
+            </>
+          )}
+        </div>
+      </div>
+      <div className="row">
+        <button className="btn primary" onClick={apply}>
+          <CheckCircle2 size={16} /> Use my computer
+        </button>
+        {changed && (
+          <button
+            className="btn ghost"
+            onClick={() => {
+              setRam(detRam);
+              setVram(detVram);
+            }}
+          >
+            Reset to detected
           </button>
         )}
       </div>

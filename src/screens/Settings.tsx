@@ -151,7 +151,7 @@ export function Settings() {
         </button>
       </div>
 
-      {!isTauri() && (
+      {(
         <section className="card">
           <div className="card-head">
             <div>
@@ -166,8 +166,8 @@ export function Settings() {
             </div>
           </div>
           <div className="row">
-            <button className={`btn ${s.webHardware === "browser" ? "primary" : ""}`} onClick={() => (s.webHardware === "browser" ? s.setSetupOpen(true) : s.useBrowserHardware())}>
-              {s.webHardware === "browser" ? "Edit my machine" : "Use my computer"}
+            <button className={`btn ${s.webHardware === "browser" ? "primary" : ""}`} onClick={() => s.setSetupOpen(true)}>
+              {s.webHardware === "browser" ? "Edit my computer" : "Use my computer"}
             </button>
             <span className="faint" style={{ fontSize: 14.5 }}>or try a sample machine:</span>
             <Seg label="Sample machine" value={s.webHardware === "demo" ? s.demoId : ""} onChange={s.setDemo} options={DEMO_MACHINES.map((d) => ({ value: d.id, label: d.name }))} />

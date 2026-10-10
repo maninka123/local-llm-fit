@@ -192,10 +192,7 @@ export function RunPage() {
                   className="badge"
                   style={{ marginLeft: 8, cursor: "pointer" }}
                   data-tip="Something not right? Correct RAM, VRAM or other values"
-                  onClick={() => {
-                    navigate({ page: "settings" });
-                    setTimeout(() => document.getElementById("overrides")?.scrollIntoView({ behavior: "smooth", block: "start" }), 120);
-                  }}
+                  onClick={() => useStore.getState().setSetupOpen(true)}
                 >
                   Adjust
                 </button>

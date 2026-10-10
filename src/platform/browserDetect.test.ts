@@ -102,3 +102,12 @@ describe("software rendering", () => {
     expect(cleanRenderer("llvmpipe (LLVM 15.0.7, 256 bits)")).toBeNull();
   });
 });
+
+describe("update notes", () => {
+  it("shows only the short What's new bullets, never the download table", async () => {
+    const { parseReleaseNotes } = await import("../components/Updater");
+    const body = "Model Fit Explorer 1.0.11.\n\n## What's new\n\n- Clearer **tight fit**\n- Speed in `tok/s`\n\n## Which file should I download?\n\n| a | b |\n| --- | --- |\n- **`.sig` files**: signatures";
+    expect(parseReleaseNotes(body)).toEqual(["Clearer tight fit", "Speed in tok/s"]);
+    expect(parseReleaseNotes("• One\n• Two")).toEqual(["One", "Two"]);
+  });
+});

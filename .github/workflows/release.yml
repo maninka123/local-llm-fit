@@ -37,9 +37,7 @@ jobs:
         run: |
           {
             echo "body<<NOTES_EOF"
-            echo "Model Fit Explorer ${GITHUB_REF_NAME#v}. Installed apps update automatically."
-            echo
-            sed "s/<version>/${GITHUB_REF_NAME#v}/g" docs/RELEASE_ASSETS.md
+            node scripts/release-notes.mjs "${GITHUB_REF_NAME#v}" body
             echo "NOTES_EOF"
           } >> "$GITHUB_OUTPUT"
       - uses: tauri-apps/tauri-action@v0
@@ -56,3 +54,24 @@ jobs:
           releaseDraft: false
           includeUpdaterJson: true
           args: ${{ matrix.args }}
+
+  # The in-app update window shows latest.json "notes": replace the long release-page text
+  # with the short "What's new" bullets from CHANGELOG.md.
+  finalize:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions: { contents: write }
+    steps:
+      - uses: actions/checkout@v4
+      - name: Short update notes in latest.json
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          V="${GITHUB_REF_NAME#v}"
+          gh release download "$GITHUB_REF_NAME" --pattern latest.json --clobber
+          NOTES="$(node scripts/release-notes.mjs "$V" notes)" node -e '
+            const fs = require("fs");
+            const d = JSON.parse(fs.readFileSync("latest.json", "utf8"));
+            d.notes = process.env.NOTES;
+            fs.writeFileSync("latest.json", JSON.stringify(d, null, 2));'
+          gh release upload "$GITHUB_REF_NAME" latest.json --clobber

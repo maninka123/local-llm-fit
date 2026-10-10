@@ -60,7 +60,11 @@ export function MachineBar() {
           >
             {hw.browserConfirmed ? "My computer · edit" : "Set up my computer"}
           </button>
-        ) : null}
+        ) : (
+          <button className="badge demo" style={{ cursor: "pointer" }} onClick={() => setSetupOpen(true)} data-tip="Detected on this computer. Click to try other values or a sample machine." data-tip-pos="below">
+            My computer · edit
+          </button>
+        )}
         <span className="chip" title={`${hw.os.name} ${hw.os.version}`}>
           <HardDrive size={15} />
           <b>{hw.os.name}</b>

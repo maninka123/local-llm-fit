@@ -3595,3 +3595,30 @@ input[type="range"]::-moz-range-thumb {
   outline: 1.5px dashed var(--orange);
   outline-offset: -1px;
 }
+
+/* ------------------------------------------------------------------ update: what's new */
+.whats-new {
+  border-radius: 14px;
+  background: var(--panel-2);
+  padding: 14px 16px;
+}
+.whats-new ul {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.whats-new li {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 15.5px;
+  line-height: 1.4;
+  animation: rise 360ms var(--ease) both;
+}
+.whats-new li svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--good);
+}
