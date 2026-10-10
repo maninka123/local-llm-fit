@@ -1,7 +1,7 @@
 {
   "name": "model-fit-explorer",
   "private": true,
-  "version": "1.0.2",
+  "version": "1.0.3",
   "type": "module",
   "description": "Local AI Model Fit Explorer: what local models can run on your computer, and how well.",
   "scripts": {
