@@ -31,7 +31,12 @@ describe("single-board & edge samples", () => {
     }
   });
 
-  it("Raspberry Pi and the original Jetson Nano are CPU only", () => {
+  it("Raspberry Pi, Orange Pi and the original Jetson Nano have a GPU Ollama can't use, so models run on the CPU", () => {
+    for (const id of ["rpi5-8", "opi5plus-16", "jetson-nano-4"]) {
+      const d = DEMO_MACHINES.find((x) => x.id === id)!;
+      expect(d.report.gpus.length, id).toBe(1);
+      expect(profile(id).arch).toBe("integrated_shared");
+    }
     for (const id of ["rpi5-8", "rpi4-8", "opi5plus-16"]) expect(estimate(small, settings(), profile(id)).classification).toBe("cpu_only");
     const tiny = model({ total: 1, dense: true, artifacts: [artifact("Q4_K_M", 0.8 * GB)], arch: { ...ARCH_8B, layers: 16 } });
     expect(estimate(tiny, settings({ contextTokens: 4096 }), profile("jetson-nano-4")).classification).toBe("cpu_only");

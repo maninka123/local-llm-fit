@@ -45,9 +45,11 @@ export interface DemoMachine {
   report: HardwareReport;
 }
 
-// Small boards: CPU-only ARM boards (Ollama has no GPU backend for their GPUs/NPUs) and
-// NVIDIA Jetson / DGX Spark, which share one memory pool between the CPU and a CUDA GPU.
-function cpuBoard(id: string, name: string, cpu: HardwareReport["cpu"], ramGiB: number, freeGiB: number, os: HardwareReport["os"], why: string): DemoMachine {
+// Small boards. Every board has a GPU, but Ollama only uses some of them:
+//  - Raspberry Pi (VideoCore), RK3588 (Mali) and the original Jetson Nano (Maxwell, JetPack 4):
+//    the GPU shares RAM and Ollama has no backend for it, so models run on the CPU.
+//  - Jetson Orin / Thor and DGX Spark: one memory pool shared with a CUDA GPU that Ollama uses.
+function sharedGpuBoard(id: string, name: string, gpuName: string, vendor: GpuDevice["vendor"], cpu: HardwareReport["cpu"], ramGiB: number, freeGiB: number, os: HardwareReport["os"], why: string): DemoMachine {
   return {
     id,
     name,
@@ -58,7 +60,8 @@ function cpuBoard(id: string, name: string, cpu: HardwareReport["cpu"], ramGiB: 
       formFactorEvidence: [`Model: ${name.split(" · ")[0].replace(/ \(.*\)$/, "")}`, why],
       cpu,
       memory: { totalBytes: f(ramGiB * GiB), availableBytes: f(freeGiB * GiB, "Demo fixture (live)") },
-      memoryArchitecture: f("cpu_only"),
+      memoryArchitecture: f("integrated_shared"),
+      gpus: [gpu({ id: "gpu0", name: gpuName, vendor, kind: "integrated", sharedBytes: f(ramGiB * GiB, "Demo fixture (shares system RAM)") })],
     }),
   };
 }
@@ -85,16 +88,16 @@ const PI_OS = { name: "Raspberry Pi OS", version: "Bookworm", arch: "aarch64" };
 const JETPACK6 = { name: "Linux", version: "JetPack 6.2 (Ubuntu 22.04)", arch: "aarch64" };
 
 export const BOARD_MACHINES: DemoMachine[] = [
-  cpuBoard("rpi5-8", "Raspberry Pi 5 (8 GB) · CPU only · 8 GB RAM", { brand: "Broadcom BCM2712 (Cortex-A76)", physicalCores: 4, logicalCores: 4 }, 8, 7, PI_OS, "Ollama runs on the CPU"),
-  cpuBoard("rpi5-16", "Raspberry Pi 5 (16 GB) · CPU only · 16 GB RAM", { brand: "Broadcom BCM2712 (Cortex-A76)", physicalCores: 4, logicalCores: 4 }, 16, 14.8, PI_OS, "Ollama runs on the CPU"),
-  cpuBoard("rpi4-8", "Raspberry Pi 4 (8 GB) · CPU only · 8 GB RAM", { brand: "Broadcom BCM2711 (Cortex-A72)", physicalCores: 4, logicalCores: 4 }, 8, 7, PI_OS, "Ollama runs on the CPU"),
-  cpuBoard("opi5plus-16", "Orange Pi 5 Plus · CPU only · 16 GB RAM", { brand: "Rockchip RK3588 (4× A76 + 4× A55)", physicalCores: 8, logicalCores: 8 }, 16, 14.5, { name: "Linux", version: "Ubuntu 22.04", arch: "aarch64" }, "Its NPU isn't used by Ollama"),
-  cpuBoard("jetson-nano-4", "Jetson Nano (original) · CPU only · 4 GB RAM", { brand: "NVIDIA Tegra X1 (Cortex-A57)", physicalCores: 4, logicalCores: 4 }, 4, 3.2, { name: "Linux", version: "JetPack 4.6 (Ubuntu 18.04)", arch: "aarch64" }, "GPU too old for current Ollama"),
-  nvidiaBoard("jetson-orin-nano-8", "Jetson Orin Nano Super · CUDA GPU · 8 GB shared", "NVIDIA Jetson Orin Nano Super (1024-core Ampere)", { brand: "Arm Cortex-A78AE", physicalCores: 6, logicalCores: 6 }, 8, 6.4, 6.5, JETPACK6),
-  nvidiaBoard("jetson-orin-nx-16", "Jetson Orin NX · CUDA GPU · 16 GB shared", "NVIDIA Jetson Orin NX (1024-core Ampere)", { brand: "Arm Cortex-A78AE", physicalCores: 8, logicalCores: 8 }, 16, 13.5, 14, JETPACK6),
-  nvidiaBoard("jetson-agx-orin-64", "Jetson AGX Orin · CUDA GPU · 64 GB shared", "NVIDIA Jetson AGX Orin (2048-core Ampere)", { brand: "Arm Cortex-A78AE", physicalCores: 12, logicalCores: 12 }, 64, 58, 60, JETPACK6),
-  nvidiaBoard("jetson-agx-thor-128", "Jetson AGX Thor · CUDA GPU · 128 GB shared", "NVIDIA Jetson AGX Thor (Blackwell)", { brand: "Arm Neoverse-V3AE", physicalCores: 14, logicalCores: 14 }, 128, 118, 120, { name: "Linux", version: "JetPack 7 (Ubuntu 24.04)", arch: "aarch64" }),
-  nvidiaBoard("dgx-spark-128", "NVIDIA DGX Spark · CUDA GPU · 128 GB shared", "NVIDIA GB10 Grace Blackwell", { brand: "NVIDIA GB10 (10× X925 + 10× A725)", physicalCores: 20, logicalCores: 20 }, 128, 116, 120, { name: "DGX OS", version: "7 (Ubuntu 24.04)", arch: "aarch64" }, "desktop"),
+  sharedGpuBoard("rpi5-8", "Raspberry Pi 5 (8 GB) · 8 GB RAM · GPU not used by Ollama", "Broadcom VideoCore VII", "other", { brand: "Broadcom BCM2712 (Cortex-A76)", physicalCores: 4, logicalCores: 4 }, 8, 7, PI_OS, "Ollama has no backend for the VideoCore GPU"),
+  sharedGpuBoard("rpi5-16", "Raspberry Pi 5 (16 GB) · 16 GB RAM · GPU not used by Ollama", "Broadcom VideoCore VII", "other", { brand: "Broadcom BCM2712 (Cortex-A76)", physicalCores: 4, logicalCores: 4 }, 16, 14.8, PI_OS, "Ollama has no backend for the VideoCore GPU"),
+  sharedGpuBoard("rpi4-8", "Raspberry Pi 4 (8 GB) · 8 GB RAM · GPU not used by Ollama", "Broadcom VideoCore VI", "other", { brand: "Broadcom BCM2711 (Cortex-A72)", physicalCores: 4, logicalCores: 4 }, 8, 7, PI_OS, "Ollama has no backend for the VideoCore GPU"),
+  sharedGpuBoard("opi5plus-16", "Orange Pi 5 Plus · 16 GB RAM · Mali GPU + NPU not used by Ollama", "Arm Mali-G610 MP4 (+ 6 TOPS NPU)", "other", { brand: "Rockchip RK3588 (4× A76 + 4× A55)", physicalCores: 8, logicalCores: 8 }, 16, 14.5, { name: "Linux", version: "Ubuntu 22.04", arch: "aarch64" }, "Ollama has no backend for the Mali GPU or the NPU"),
+  sharedGpuBoard("jetson-nano-4", "Jetson Nano (original) · 4 GB shared · CUDA GPU too old for Ollama", "NVIDIA Maxwell (128 CUDA cores)", "nvidia", { brand: "NVIDIA Tegra X1 (Cortex-A57)", physicalCores: 4, logicalCores: 4 }, 4, 3.2, { name: "Linux", version: "JetPack 4.6 (Ubuntu 18.04)", arch: "aarch64" }, "Current Ollama needs JetPack 5 or newer (Xavier / Orin)"),
+  nvidiaBoard("jetson-orin-nano-8", "Jetson Orin Nano Super · 8 GB shared · CUDA GPU", "NVIDIA Jetson Orin Nano Super (1024-core Ampere)", { brand: "Arm Cortex-A78AE", physicalCores: 6, logicalCores: 6 }, 8, 6.4, 6.5, JETPACK6),
+  nvidiaBoard("jetson-orin-nx-16", "Jetson Orin NX · 16 GB shared · CUDA GPU", "NVIDIA Jetson Orin NX (1024-core Ampere)", { brand: "Arm Cortex-A78AE", physicalCores: 8, logicalCores: 8 }, 16, 13.5, 14, JETPACK6),
+  nvidiaBoard("jetson-agx-orin-64", "Jetson AGX Orin · 64 GB shared · CUDA GPU", "NVIDIA Jetson AGX Orin (2048-core Ampere)", { brand: "Arm Cortex-A78AE", physicalCores: 12, logicalCores: 12 }, 64, 58, 60, JETPACK6),
+  nvidiaBoard("jetson-agx-thor-128", "Jetson AGX Thor · 128 GB shared · CUDA GPU", "NVIDIA Jetson AGX Thor (Blackwell)", { brand: "Arm Neoverse-V3AE", physicalCores: 14, logicalCores: 14 }, 128, 118, 120, { name: "Linux", version: "JetPack 7 (Ubuntu 24.04)", arch: "aarch64" }),
+  nvidiaBoard("dgx-spark-128", "NVIDIA DGX Spark · 128 GB shared · CUDA GPU", "NVIDIA GB10 Grace Blackwell", { brand: "NVIDIA GB10 (10× X925 + 10× A725)", physicalCores: 20, logicalCores: 20 }, 128, 116, 120, { name: "DGX OS", version: "7 (Ubuntu 24.04)", arch: "aarch64" }, "desktop"),
 ];
 
 export const COMPUTER_MACHINES: DemoMachine[] = [

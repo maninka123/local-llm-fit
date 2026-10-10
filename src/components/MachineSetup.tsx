@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { Apple, CheckCircle2, Cpu, Download, FlaskConical, HelpCircle, Laptop, Monitor, Sparkles } from "lucide-react";
+import { AlertTriangle, Apple, CheckCircle2, Cpu, Download, FlaskConical, HelpCircle, Laptop, Microchip, Monitor, Sparkles } from "lucide-react";
 import { useStore } from "../state/store";
 import { detectBrowser, suggestSetup, type BrowserSetup } from "../platform/browserDetect";
 import { isTauri } from "../platform/bridge";
 import { APPLE_CHIPS, COMMON_RAM_GB, lookupGpu } from "../platform/gpuSpecs";
 import { GpuCombobox } from "./GpuCombobox";
 import { Modal, Seg } from "./ui";
-import { DEMO_MACHINES } from "../platform/demoHardware";
+import { DEMO_MACHINES, type DemoMachine } from "../platform/demoHardware";
 import { GiB } from "../lib/units";
 import { FormIcon } from "./MachineBar";
 
@@ -38,12 +38,19 @@ function SetupForm({ onDone }: { onDone?: () => void }) {
   );
 }
 
+const COMPUTERS = DEMO_MACHINES.filter((d) => d.group !== "board");
+const BOARDS = DEMO_MACHINES.filter((d) => d.group === "board");
+/** Board whose GPU Ollama can use (Jetson Orin/Thor, DGX Spark: CUDA on shared memory). */
+const boardGpuUsable = (d: DemoMachine) => d.report.memoryArchitecture.value === "unified";
+
 function SamplePicker({ onDone }: { onDone?: () => void }) {
   const webHardware = useStore((s) => s.webHardware);
   const demoId = useStore((s) => s.demoId);
   const overrides = useStore((s) => s.overrides);
   const [sel, setSel] = useState(demoId);
   const sample = DEMO_MACHINES.find((d) => d.id === sel) ?? DEMO_MACHINES[0];
+  const isBoard = sample.group === "board";
+  const lastBoard = BOARDS.some((b) => b.id === demoId) ? demoId : (BOARDS.find((b) => b.id === "jetson-orin-nano-8") ?? BOARDS[0]).id;
   const unified = sample.report.memoryArchitecture.value === "unified";
   const gpu = sample.report.gpus.find((g) => g.kind === "discrete");
   const baseVram = gpu?.dedicatedBytes.value ? Math.round(gpu.dedicatedBytes.value / GiB) : null;
@@ -90,29 +97,65 @@ function SamplePicker({ onDone }: { onDone?: () => void }) {
       <p className="muted" style={{ margin: 0, fontSize: 15 }}>
         Pick a ready-made computer, then adjust it if you like. Your own answers are kept for when you switch back.
       </p>
-      {[
-        { title: "Computers", items: DEMO_MACHINES.filter((d) => d.group !== "board") },
-        { title: "Single-board & edge AI", items: DEMO_MACHINES.filter((d) => d.group === "board") },
-      ].map((grp) => (
-        <div key={grp.title} className="stack" style={{ gap: 8 }}>
-          <div className="sample-group">{grp.title}</div>
-          <div className="sample-grid" role="radiogroup" aria-label={`Sample machines: ${grp.title}`}>
-            {grp.items.map((d) => {
-              const ff = d.report.formFactor.value;
-              return (
-                <button key={d.id} type="button" role="radio" aria-checked={sel === d.id} className={`choice-card ${sel === d.id ? "on" : ""}`} onClick={() => pick(d.id)}>
-                  <span className="choice-icon">
-                    <FormIcon f={ff} size={22} />
-                  </span>
-                  <span className="choice-title">{d.name.split(" · ")[0]}</span>
-                  <span className="choice-sub">{d.name.split(" · ").slice(1).join(" · ")}</span>
-                  <CheckCircle2 size={18} className="choice-check" aria-hidden />
-                </button>
-              );
-            })}
-          </div>
+      <div className="sample-grid" role="radiogroup" aria-label="Sample machines">
+        {COMPUTERS.map((d) => (
+          <button key={d.id} type="button" role="radio" aria-checked={sel === d.id} className={`choice-card ${sel === d.id ? "on" : ""}`} onClick={() => pick(d.id)}>
+            <span className="choice-icon">
+              <FormIcon f={d.report.formFactor.value} size={22} />
+            </span>
+            <span className="choice-title">{d.name.split(" · ")[0]}</span>
+            <span className="choice-sub">{d.name.split(" · ").slice(1).join(" · ")}</span>
+            <CheckCircle2 size={18} className="choice-check" aria-hidden />
+          </button>
+        ))}
+        <button type="button" role="radio" aria-checked={isBoard} className={`choice-card ${isBoard ? "on" : ""}`} onClick={() => !isBoard && pick(lastBoard)}>
+          <span className="choice-icon">
+            <Microchip size={22} />
+          </span>
+          <span className="choice-title">Single-board &amp; edge AI</span>
+          <span className="choice-sub">{isBoard ? sample.name.split(" · ")[0] : "Raspberry Pi, Jetson, DGX Spark…"}</span>
+          <CheckCircle2 size={18} className="choice-check" aria-hidden />
+        </button>
+      </div>
+      {isBoard && (
+        <div className="setup-step appear">
+          <label className="setup-q" htmlFor="board-pick">
+            <span className="step-num">
+              <Microchip size={15} />
+            </span>{" "}
+            Which board?
+          </label>
+          <select id="board-pick" className="select" value={sel} onChange={(e) => pick(e.target.value)} style={{ maxWidth: 460 }}>
+            <optgroup label="GPU used by Ollama (CUDA)">
+              {BOARDS.filter(boardGpuUsable).map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name.split(" · ").slice(0, 2).join(" · ")}
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="Has a GPU Ollama can't use (runs on the CPU)">
+              {BOARDS.filter((d) => !boardGpuUsable(d)).map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name.split(" · ").slice(0, 2).join(" · ")}
+                </option>
+              ))}
+            </optgroup>
+          </select>
+          {boardGpuUsable(sample) ? (
+            <p className="board-gpu ok">
+              <CheckCircle2 size={16} /> <span><b>GPU usable:</b> {sample.report.gpus[0]?.name}. Ollama runs models on its CUDA GPU, sharing the board's memory.</span>
+            </p>
+          ) : (
+            <p className="board-gpu warn">
+              <AlertTriangle size={16} />{" "}
+              <span>
+                <b>GPU not usable:</b> it has a GPU ({sample.report.gpus[0]?.name ?? "integrated"}), but Ollama can't use it, so models run on the CPU.{" "}
+                <span className="muted">{sample.report.formFactorEvidence[1]}.</span>
+              </span>
+            </p>
+          )}
         </div>
-      ))}
+      )}
       <div className="setup-step sample-edit appear" key={sel}>
         <div className="setup-q">
           <span className="step-num">✎</span> Adjust this sample (optional)

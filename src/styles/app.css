@@ -3672,15 +3672,6 @@ textarea,
   min-height: 38px;
 }
 
-/* sample picker groups */
-.sample-group {
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  color: var(--text-3);
-}
-
 /* web: "Get the desktop app" (top-right) */
 .desktop-cta {
   background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 16%, transparent), color-mix(in srgb, var(--accent) 6%, transparent));
@@ -3752,4 +3743,34 @@ a.btn:hover {
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+}
+
+/* sample picker: whether a board's GPU is usable */
+.board-gpu {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin: 12px 0 0;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 14.5px;
+  line-height: 1.45;
+}
+.board-gpu > svg {
+  flex: none;
+  margin-top: 2px;
+}
+.board-gpu.ok {
+  background: color-mix(in srgb, var(--good) 12%, transparent);
+  color: var(--text);
+}
+.board-gpu.ok > svg {
+  color: var(--good);
+}
+.board-gpu.warn {
+  background: color-mix(in srgb, var(--warn) 14%, transparent);
+  color: var(--text);
+}
+.board-gpu.warn > svg {
+  color: var(--warn);
 }

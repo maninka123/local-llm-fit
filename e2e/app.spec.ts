@@ -261,8 +261,13 @@ test("samples: a Jetson board runs models on its CUDA GPU from shared memory", a
   await boot(page);
   await page.getByRole("button", { name: /Sample: Gaming desktop/ }).click();
   const dlg = page.getByRole("dialog");
-  await expect(dlg.getByText("Single-board & edge AI")).toBeVisible();
-  await dlg.getByRole("radio", { name: /Jetson Orin Nano Super/ }).click();
+  await expect(dlg.getByRole("radiogroup", { name: "Sample machines" }).getByRole("radio")).toHaveCount(6); // 5 computers + one board option
+  await dlg.getByRole("radio", { name: /Single-board & edge AI/ }).click();
+  const board = dlg.getByLabel("Which board?");
+  await board.selectOption("rpi5-8");
+  await expect(dlg.getByText("GPU not usable:")).toBeVisible(); // has a GPU, but Ollama can't use it
+  await board.selectOption("jetson-orin-nano-8");
+  await expect(dlg.getByText("GPU usable:")).toBeVisible();
   await dlg.getByRole("button", { name: "Show this machine" }).click();
   const bar = page.locator(".machine-bar");
   await expect(bar).toContainText("Sample: Jetson Orin Nano Super");

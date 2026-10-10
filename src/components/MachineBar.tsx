@@ -113,7 +113,7 @@ export function MachineBar() {
             {m.arch !== "discrete" && (
               <span className="chip">
                 <CircuitBoard size={15} />
-                <b>{m.arch === "integrated_shared" ? "Integrated GPU (shares RAM)" : "No usable GPU"}</b>
+                <b>{m.arch === "integrated_shared" ? "GPU not used by Ollama (shares RAM)" : "No usable GPU"}</b>
               </span>
             )}
             <span className="chip">

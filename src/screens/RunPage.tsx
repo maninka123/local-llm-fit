@@ -220,13 +220,15 @@ export function RunPage() {
           <Spec
             label="Graphics"
             manual={o.vramTotalGiB != null || o.unifiedGpuLimitGiB != null}
-            value={machine.arch === "unified" ? (gpu?.name ?? hw.gpus[0]?.name ?? "Apple GPU") : gpu ? `${gpu.name}` : machine.arch === "integrated_shared" ? "Integrated graphics" : "No graphics card"}
+            value={machine.arch === "unified" ? (gpu?.name ?? hw.gpus[0]?.name ?? "Apple GPU") : gpu ? `${gpu.name}` : machine.arch === "integrated_shared" ? (hw.gpus.find((g) => g.kind === "integrated")?.name ?? "Integrated graphics") : "No graphics card"}
             sub={
               machine.arch === "unified"
                 ? `Shares memory · GPU can use up to ${fmtBytes(machine.unifiedGpuLimit)}`
                 : gpu
                   ? `${fmtBytes(gpu.vramTotal)} VRAM${gpu.vramFree != null ? ` · ${fmtBytes(gpu.vramFree)} free` : ""}`
-                  : "Models run on the CPU"
+                  : machine.arch === "integrated_shared"
+                    ? "Shares RAM · not used by Ollama, models run on the CPU"
+                    : "Models run on the CPU"
             }
             tip={hw.gpus.length > 1 ? `${hw.gpus.length} adapters: ${hw.gpus.map((g) => g.name).join(", ")}` : undefined}
           />
@@ -329,7 +331,7 @@ export function RunPage() {
           ) : (
             <p className="muted" style={{ fontSize: 15 }}>
               {slowRam
-                ? "Models run on the CPU from this board's memory, which is much slower than a PC's. Expect a few words per second: 1–4B models at Q4 are the sweet spot."
+                ? `${machine.arch === "integrated_shared" ? "Ollama doesn't use this board's GPU, so models" : "Models"} run on the CPU from the board's memory, which is much slower than a PC's. Expect a few words per second: 1–4B models at Q4 are the sweet spot.`
                 : "Models run on the CPU from system RAM. Small models (1–8B at Q4) are usually pleasant; larger ones will be slow. GPU acceleration on integrated graphics is not assumed."}
             </p>
           )}
@@ -393,7 +395,7 @@ export function RunPage() {
         </div>
         <div className="divider" />
         <div className="grid cols-3">
-          <PickList title="Runs well · best picks" items={picks.well} empty={gpuRuns ? "Nothing fits entirely in GPU memory at these settings." : "No usable GPU, so nothing runs at full speed. See the next column."} />
+          <PickList title="Runs well · best picks" items={picks.well} empty={gpuRuns ? "Nothing fits entirely in GPU memory at these settings." : machine.arch === "integrated_shared" ? "Ollama can't use this GPU, so nothing runs at full speed. See the next column." : "No usable GPU, so nothing runs at full speed. See the next column."} />
           <PickList title="Runs, but slower · best picks" items={picks.slower} empty="Nothing in this group." note={gpuRuns ? "Part runs on the CPU. MoE models usually cope best." : "Runs on the CPU. Smaller and MoE models reply fastest."} />
           <PickList title="Tight fit · best picks" items={picks.tight} empty="Nothing in this group." note="Fits only if you close other apps." />
         </div>

@@ -2,6 +2,10 @@
 
 Short, user-facing notes. The section for each version is shown in the app's update window.
 
+## 1.0.16
+- Samples: one "Single-board & edge AI" option, then choose the board
+- Boards show their GPU and say clearly whether Ollama can use it
+
 ## 1.0.15
 - New sample machines: Raspberry Pi 4/5, Orange Pi 5 Plus, Jetson Nano, Orin Nano Super, Orin NX, AGX Orin, AGX Thor and DGX Spark
 - Desktop app for 64-bit ARM Linux (Raspberry Pi, Jetson); detects Jetson GPUs and board names
