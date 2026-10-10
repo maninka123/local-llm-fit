@@ -422,11 +422,13 @@ function PickList({ title, items, empty, note }: { title: string; items: { m: Mo
               </div>
               <div className="mdev">
                 {fmtParams(m.totalParamsB.value)}
-                {m.activeParamsB.value ? ` · ${fmtParams(m.activeParamsB.value)} active` : ""} · {e.weights ? fmtBytes(e.weights.mid, "GB") : "size ?"}{" "}
-                · <SpeedLabel est={e} />
+                {m.activeParamsB.value ? ` · ${fmtParams(m.activeParamsB.value)} active` : ""} · {e.weights ? fmtBytes(e.weights.mid, "GB") : "size ?"}
               </div>
             </div>
+          </div>
+          <div className="row" style={{ gap: 10 }}>
             <BucketBadge bucket={bucketOf(e.classification)} />
+            <SpeedLabel est={e} />
           </div>
           <CapabilityStrip caps={m.capabilities} />
           {r.reasons.length > 0 && <div className="why-line">{r.reasons.slice(0, 3).join(" · ")}</div>}

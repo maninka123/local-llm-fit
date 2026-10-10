@@ -8,6 +8,7 @@ import { quantInfo } from "../domain/quant";
 import { fmtBytes, fmtParams, fmtRange, fmtTokens } from "../lib/units";
 import { Avatar, ConfidenceMeter, Empty, FitPill, TONE_VAR, Prov, SpeedLabel } from "../components/ui";
 import { StatusIcon } from "../components/Capabilities";
+import { AddToCompare } from "../components/AddToCompare";
 
 export function Compare() {
   const ids = useStore((s) => s.compare);
@@ -40,10 +41,13 @@ export function Compare() {
         </div>
         <div className="card">
           <Empty icon={<Columns3 size={34} />} title="Nothing to compare yet">
-            <span>Add up to four models with the Compare button on any model card.</span>
-            <button className="btn primary" onClick={() => navigate({ page: "explore" })}>
-              Open Model Explorer
-            </button>
+            <span>Add up to four models here, or with the Compare button on any card in the Model Explorer.</span>
+            <div className="row" style={{ justifyContent: "center" }}>
+              <AddToCompare big />
+              <button className="btn" onClick={() => navigate({ page: "explore" })}>
+                Open Model Explorer
+              </button>
+            </div>
           </Empty>
         </div>
       </div>
@@ -80,6 +84,7 @@ export function Compare() {
             {fmtTokens(settings.contextTokens)} context · {settings.parallel} session(s) · {settings.imageCount ? `${settings.imageCount} image(s)` : "text only"}. Change these on any model page.
           </p>
         </div>
+        {rows.length < 4 && <AddToCompare />}
       </div>
 
       <section className="card" style={{ marginBottom: 18 }} aria-labelledby="pressure-title">

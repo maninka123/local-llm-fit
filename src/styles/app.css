@@ -3357,3 +3357,139 @@ input[type="range"]::-moz-range-thumb {
 .similar-card .row > div {
   min-width: 0;
 }
+
+/* Lists and cards never spread extra height between their rows (keeps short columns tidy). */
+.stack,
+.mcard,
+.similar-card,
+.fact {
+  align-content: start;
+}
+.grid.cols-3 > .stack,
+.grid.cols-2 > .stack {
+  align-self: start;
+}
+
+.mname {
+  overflow-wrap: normal;
+  word-break: normal;
+}
+.mcard .mname {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------------------ add to compare */
+.add-compare {
+  position: relative;
+}
+.add-slot {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 44px;
+  padding: 0 18px 0 8px;
+  border-radius: 980px;
+  border: 1.5px dashed color-mix(in srgb, var(--accent) 45%, var(--border-strong));
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+  color: var(--accent);
+  font-weight: 650;
+  font-size: 15px;
+  cursor: pointer;
+  transition: background 180ms, transform 140ms var(--ease);
+}
+.add-slot:hover {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.add-slot:active {
+  transform: scale(0.97);
+}
+.add-slot:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.add-slot.big {
+  height: 52px;
+  font-size: 16px;
+}
+.add-plus {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.add-pop {
+  position: absolute;
+  z-index: 50;
+  top: calc(100% + 8px);
+  right: 0;
+  width: min(560px, 92vw);
+  padding: 10px;
+  border-radius: 18px;
+  background: var(--panel-solid);
+  border: 1px solid var(--border-strong);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06), 0 24px 60px -18px rgba(0, 0, 0, 0.35);
+  animation: pop 180ms var(--ease) both;
+}
+.empty .add-pop {
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  text-align: left;
+}
+.add-pop .search {
+  min-width: 0;
+}
+.add-list {
+  margin-top: 8px;
+  max-height: 380px;
+  overflow: auto;
+  display: grid;
+  gap: 2px;
+}
+.add-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  color: var(--text);
+}
+.add-item.on {
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+}
+.add-item .avatar {
+  width: 36px;
+  height: 36px;
+  font-size: 13px;
+}
+.add-text {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+}
+.add-text .mname {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 15px;
+}
+.add-meta {
+  display: grid;
+  justify-items: end;
+  gap: 4px;
+  flex: none;
+}
+.add-meta .bucket-badge {
+  height: 26px;
+  font-size: 12.5px;
+  padding: 0 9px;
+}

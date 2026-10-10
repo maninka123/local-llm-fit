@@ -231,3 +231,15 @@ test("setup: switch to a sample machine, adjust its memory, and switch back", as
   await page.getByRole("dialog").getByRole("button", { name: "Use my computer" }).click();
   await expect(page.getByRole("button", { name: "My computer · edit" }).first()).toBeVisible();
 });
+
+test("compare: add models from the searchable dropdown", async ({ page }) => {
+  await boot(page, { compare: [] }, "#/compare");
+  await page.getByRole("button", { name: "Add model" }).click();
+  await page.getByLabel("Search models to compare").fill("gemma3 12b");
+  await page.getByRole("option").first().click();
+  await expect(page.getByRole("heading", { name: "1 models side by side" })).toBeVisible();
+  await page.getByRole("button", { name: "Add model" }).click();
+  await page.getByLabel("Search models to compare").fill("qwen3 14b");
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("heading", { name: "2 models side by side" })).toBeVisible();
+});
