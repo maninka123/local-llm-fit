@@ -3,11 +3,11 @@ import { ArrowRight, Boxes, Image, RotateCcw, Sparkles } from "lucide-react";
 import { useStore } from "../state/store";
 import { useMachine } from "../state/derived";
 import { addEvidence, emptyCapabilities } from "../domain/capabilities";
-import { estimate, RESPONSIVENESS_TEXT } from "../domain/estimator";
+import { estimate } from "../domain/estimator";
 import { quantInfo } from "../domain/quant";
 import type { ModelVariant, QuantId } from "../domain/types";
 import { fmtBytes, fmtParams, fmtTokens } from "../lib/units";
-import { AnimatedBytes, ConfidenceMeter, FitPill, Seg, TONE_VAR } from "../components/ui";
+import { AnimatedBytes, ConfidenceMeter, FitPill, Seg, TONE_VAR, SpeedLabel } from "../components/ui";
 import { IsoViz } from "../components/IsoViz";
 import { MachineSetupCard } from "../components/MachineSetup";
 import { SimilarModels } from "../components/SimilarModels";
@@ -212,7 +212,6 @@ export function Playground() {
             <div className="row">
               <FitPill cls={est.classification} />
               <ConfidenceMeter c={est.confidence} />
-              <span className="badge">{RESPONSIVENESS_TEXT[est.responsiveness]}</span>
             </div>
             <h2>{est.headline}.</h2>
             <p>{est.summary}</p>
@@ -229,6 +228,14 @@ export function Playground() {
                   <AnimatedBytes bytes={machine.arch === "discrete" ? est.pools.vramUsable : machine.arch === "unified" ? Math.min(est.pools.unifiedGpuLimit ?? Infinity, est.pools.ramUsable ?? Infinity) : est.pools.ramUsable} />
                 </div>
               </div>
+              {est.speed && (
+                <div>
+                  <div className="eyebrow">Speed (guess)</div>
+                  <div className="pg-big">
+                    <SpeedLabel est={est} large />
+                  </div>
+                </div>
+              )}
               {est.placement && est.placement.gpuFraction > 0 && est.placement.gpuFraction < 1 && (
                 <div>
                   <div className="eyebrow">On the GPU</div>

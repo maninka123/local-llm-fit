@@ -2,12 +2,12 @@ import { useMemo } from "react";
 import { AlertTriangle, ArrowRight, CheckCircle2, Gauge, SearchX, XCircle } from "lucide-react";
 import { useStore } from "../state/store";
 import { useMachine } from "../state/derived";
-import { estimate, type EstimatorSettings } from "../domain/estimator";
+import { estimate, type Estimate, type EstimatorSettings } from "../domain/estimator";
 import { resolveInput, resolveOutput } from "../domain/capabilities";
 import { BUCKETS, bucketOf, recommend, type Bucket } from "../domain/recommend";
 import type { ModelVariant, QuantId } from "../domain/types";
 import { fmtBytes, fmtParams } from "../lib/units";
-import { Avatar } from "./ui";
+import { Avatar, SpeedLabel } from "./ui";
 
 // "Real models like this": the best catalog matches for the Playground's current shape.
 // Shown whether or not they run, each with the same coloured status as the main pages.
@@ -47,7 +47,7 @@ export function SimilarModels({ shape, settings }: { shape: Shape; settings: Est
 
   const picks = useMemo(() => {
     if (!machine) return [];
-    const out: { m: ModelVariant; score: number; bucket: Bucket; weights: number | null; reasons: string[] }[] = [];
+    const out: { m: ModelVariant; score: number; bucket: Bucket; weights: number | null; reasons: string[]; e: Estimate }[] = [];
     for (const m of catalog.values()) {
       const total = m.totalParamsB.value;
       if (!total || m.cloudOnly) continue;
@@ -67,7 +67,7 @@ export function SimilarModels({ shape, settings }: { shape: Shape; settings: Est
       const quant = published ? shape.quant : (m.artifacts.find((a) => a.isDefaultTag)?.quant ?? shape.quant);
       const e = estimate(m, { ...settings, quant }, machine);
       const r = recommend(m, e, families[m.family]);
-      out.push({ m, score: similarity * 50 + r.score * 0.5, bucket: bucketOf(e.classification), weights: e.weights?.mid ?? null, reasons: r.reasons });
+      out.push({ m, score: similarity * 50 + r.score * 0.5, bucket: bucketOf(e.classification), weights: e.weights?.mid ?? null, reasons: r.reasons, e });
     }
     const seen = new Set<string>();
     return out
@@ -119,7 +119,7 @@ export function SimilarModels({ shape, settings }: { shape: Shape; settings: Est
         </div>
       ) : (
         <div className="similar-grid">
-          {picks.map(({ m, bucket, weights, reasons }, i) => (
+          {picks.map(({ m, bucket, weights, reasons, e }, i) => (
             <button key={m.id} className="similar-card" style={{ animationDelay: `${i * 60}ms`, ["--tone" as string]: BUCKETS.find((b) => b.id === bucket)!.tone }} onClick={() => navigate({ page: "model", modelId: m.id })}>
               <span className="similar-rank">#{i + 1}</span>
               <div className="row" style={{ gap: 12, flexWrap: "nowrap" }}>
@@ -133,7 +133,10 @@ export function SimilarModels({ shape, settings }: { shape: Shape; settings: Est
                   </div>
                 </div>
               </div>
-              <BucketBadge bucket={bucket} />
+              <div className="row" style={{ gap: 10 }}>
+                <BucketBadge bucket={bucket} />
+                {e.speed && <SpeedLabel est={e} />}
+              </div>
               {reasons.length > 0 && <div className="why-line">{reasons.slice(0, 2).join(" · ")}</div>}
             </button>
           ))}

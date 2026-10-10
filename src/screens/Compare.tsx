@@ -2,11 +2,11 @@ import { useMemo } from "react";
 import { Columns3, X } from "lucide-react";
 import { useStore } from "../state/store";
 import { latestBenchmark, quantFor, useMachine, ageText } from "../state/derived";
-import { estimate, RESPONSIVENESS_TEXT, CLASS_META } from "../domain/estimator";
+import { estimate, CLASS_META } from "../domain/estimator";
 import { modalityLabel, resolveInput, resolveOutput, STATUS_TEXT } from "../domain/capabilities";
 import { quantInfo } from "../domain/quant";
 import { fmtBytes, fmtParams, fmtRange, fmtTokens } from "../lib/units";
-import { Avatar, ConfidenceMeter, Empty, FitPill, TONE_VAR, Prov } from "../components/ui";
+import { Avatar, ConfidenceMeter, Empty, FitPill, TONE_VAR, Prov, SpeedLabel } from "../components/ui";
 import { StatusIcon } from "../components/Capabilities";
 
 export function Compare() {
@@ -136,9 +136,9 @@ export function Compare() {
           </div>
           {line("Fit", rows.map(({ m, e }) => <FitPill key={m.id} cls={e.classification} cloud={m.cloudOnly} />))}
           {line("Confidence", rows.map(({ m, e }) => <ConfidenceMeter key={m.id} c={e.confidence} />))}
-          {line("Responsiveness", rows.map(({ m, e }) => {
+          {line("Speed (guess)", rows.map(({ m, e }) => {
             const b = latestBenchmark(benches, m);
-            return b?.generationTokPerSec ? <b key={m.id} style={{ color: "var(--good)" }}>Measured {b.generationTokPerSec.toFixed(1)} tok/s</b> : <span key={m.id}>{RESPONSIVENESS_TEXT[e.responsiveness]} <span className="faint">(estimate)</span></span>;
+            return <SpeedLabel key={m.id} est={e} measured={b?.generationTokPerSec} />;
           }))}
           {line("Expected residency", rows.map(({ m, e }) => <span key={m.id}>{e.placement ? `${Math.round(e.placement.gpuFraction * 100)}% GPU (planned)` : "—"}</span>))}
           {line("Total / active params", rows.map(({ m }) => <span key={m.id} className="num">{fmtParams(m.totalParamsB.value)} / {m.activeParamsB.value != null ? fmtParams(m.activeParamsB.value) : m.architecture.value === "dense" ? "all" : "Unknown"}</span>))}

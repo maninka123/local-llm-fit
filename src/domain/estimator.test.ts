@@ -245,3 +245,39 @@ describe("recommendation ranking", () => {
     expect(recommend(emb, e, undefined).score).toBeLessThan(recommend(emb, e, undefined, { wantEmbeddings: true }).score);
   });
 });
+
+describe("speed guess (tokens/second)", () => {
+  const withBw = (m: ReturnType<typeof discrete>, bw: number | null) => ({ ...m, gpuBandwidthGBs: bw });
+  it("is roughly memory bandwidth ÷ bytes read per token", () => {
+    const m = model({ total: 8, dense: true, artifacts: [artifact("Q4_K_M", 4.9 * GB)], arch: ARCH_8B });
+    const e = estimate(m, settings(), withBw(discrete(16, 15, 32, 24), 672));
+    expect(e.speed).not.toBeNull();
+    // 672 GB/s × 50–80% ÷ ~5 GB ≈ 55–100 tok/s
+    expect(e.speed!.range.mid).toBeGreaterThan(50);
+    expect(e.speed!.range.mid).toBeLessThan(110);
+    expect(e.speed!.range.low).toBeLessThan(e.speed!.range.high);
+  });
+  it("MoE reads only active weights, so it is much faster than a dense model of the same size", () => {
+    const mach = withBw(discrete(24, 23, 64, 50), 1008);
+    const dense = estimate(model({ total: 30, dense: true, arch: ARCH_8B }), settings(), mach);
+    const moe = estimate(model({ total: 30, active: 3, moe: true, arch: ARCH_8B }), settings(), mach);
+    expect(moe.speed!.range.mid).toBeGreaterThan(dense.speed!.range.mid * 4);
+  });
+  it("offloading to RAM slows it down sharply", () => {
+    const m = model({ total: 27, dense: true, arch: { ...ARCH_8B, layers: 62 } });
+    const fits = estimate(m, settings(), withBw(discrete(24, 23, 64, 50), 1008));
+    const offload = estimate(m, settings(), withBw(discrete(12, 11.5, 64, 50), 1008));
+    expect(offload.classification).toBe("hybrid_slow");
+    expect(offload.speed!.range.mid).toBeLessThan(fits.speed!.range.mid / 3);
+  });
+  it("no number when it can't run or the GPU's memory speed is unknown", () => {
+    expect(estimate(model({ total: 405, dense: true }), settings(), withBw(discrete(16, 15, 32, 24), 672)).speed).toBeNull();
+    expect(estimate(model({ total: 8, dense: true }), settings(), withBw(discrete(16, 15, 32, 24), null)).speed).toBeNull();
+  });
+  it("CPU-only machines still get a (slow) guess from RAM speed", () => {
+    const cpu = { ...discrete(0, null, 16, 12), arch: "cpu_only" as const, gpus: [] };
+    const e = estimate(model({ total: 3, dense: true }), settings(), cpu);
+    expect(e.speed!.cpuShare).toBe(1);
+    expect(e.speed!.range.mid).toBeLessThan(30);
+  });
+});

@@ -3,11 +3,11 @@ import { Cpu, Search, Sparkles, Zap } from "lucide-react";
 import { useStore } from "../state/store";
 import { quantFor, useMachine } from "../state/derived";
 import { acceptsInputs } from "../domain/capabilities";
-import { DEFAULT_SETTINGS, estimate, RESPONSIVENESS_TEXT, type Estimate, type MachineProfile } from "../domain/estimator";
+import { DEFAULT_SETTINGS, estimate, type Estimate, type MachineProfile } from "../domain/estimator";
 import { quantInfo } from "../domain/quant";
 import type { ModelVariant } from "../domain/types";
 import { fmtBytes, fmtParams, GiB } from "../lib/units";
-import { Avatar, Switch, AnimatedBytes, Seg } from "../components/ui";
+import { Avatar, Switch, AnimatedBytes, Seg, SpeedLabel } from "../components/ui";
 import { InputPicker, CapabilityStrip } from "../components/Capabilities";
 import { FORM_LABEL, FormIcon } from "../components/MachineBar";
 import { useExplorer } from "./Explorer";
@@ -422,7 +422,8 @@ function PickList({ title, items, empty, note }: { title: string; items: { m: Mo
               </div>
               <div className="mdev">
                 {fmtParams(m.totalParamsB.value)}
-                {m.activeParamsB.value ? ` · ${fmtParams(m.activeParamsB.value)} active` : ""} · {e.weights ? fmtBytes(e.weights.mid, "GB") : "size ?"} · {RESPONSIVENESS_TEXT[e.responsiveness]}
+                {m.activeParamsB.value ? ` · ${fmtParams(m.activeParamsB.value)} active` : ""} · {e.weights ? fmtBytes(e.weights.mid, "GB") : "size ?"}{" "}
+                · <SpeedLabel est={e} />
               </div>
             </div>
             <BucketBadge bucket={bucketOf(e.classification)} />

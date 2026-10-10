@@ -1,6 +1,7 @@
 import { GiB } from "../lib/units";
 import type { MachineGpu, MachineProfile } from "./estimator";
 import type { GpuDevice, HardwareOverrides, HardwareReport, MemoryArchitecture } from "./types";
+import { bandwidthFor } from "../platform/gpuSpecs";
 
 // Turns a detected HardwareReport + user overrides into the MachineProfile the estimator uses.
 // Rules enforced here:
@@ -75,9 +76,17 @@ export function buildMachineProfile(report: HardwareReport, o: HardwareOverrides
           ? "Integrated graphics (shared RAM)"
           : "CPU only";
 
+  const bandwidths = gpus.map((g) => bandwidthFor(g.name));
+  const gpuBandwidthGBs =
+    arch === "unified"
+      ? (bandwidthFor(report.gpus[0]?.name) ?? bandwidthFor(report.cpu.brand))
+      : arch === "discrete" && bandwidths.length && bandwidths.every((b) => b != null)
+        ? Math.min(...(bandwidths as number[]))
+        : null;
   return {
     arch,
     gpus,
+    gpuBandwidthGBs,
     combineGpus: o.combineGpus && gpus.length > 1,
     ramTotal,
     ramFree,

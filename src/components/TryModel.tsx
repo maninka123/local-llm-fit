@@ -2,10 +2,10 @@ import { useCallback, useMemo, useState } from "react";
 import { ArrowLeft, ArrowRight, CheckCircle2 } from "lucide-react";
 import { useStore } from "../state/store";
 import { quantFor, useMachine } from "../state/derived";
-import { estimate, RESPONSIVENESS_TEXT } from "../domain/estimator";
+import { estimate } from "../domain/estimator";
 import type { ModelVariant } from "../domain/types";
 import { fmtBytes, fmtParams, fmtRange } from "../lib/units";
-import { Avatar, ConfidenceMeter, FitPill, Modal, TONE_VAR } from "./ui";
+import { Avatar, ConfidenceMeter, FitPill, Modal, SpeedLabel, TONE_VAR } from "./ui";
 import { CapabilityStrip } from "./Capabilities";
 import { ModelLookup, VerifyForm } from "./ModelLookup";
 
@@ -46,7 +46,7 @@ function Compatibility({ m }: { m: ModelVariant }) {
       </div>
       <div className="row faint" style={{ fontSize: 13.5, justifyContent: "space-between" }}>
         <span>Needs {est.totalNeed ? fmtRange(est.totalNeed) : "unknown"}</span>
-        <span>{RESPONSIVENESS_TEXT[est.responsiveness]}</span>
+        <SpeedLabel est={est} />
       </div>
       <div style={{ marginTop: 12 }}>
         <CapabilityStrip caps={m.capabilities} />

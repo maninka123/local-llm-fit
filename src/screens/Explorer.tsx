@@ -4,11 +4,11 @@ import { Columns3, Search, SlidersHorizontal, SearchX, Check, Download } from "l
 import { useStore, type QuantChoice } from "../state/store";
 import { latestBenchmark, quantFor, useMachine } from "../state/derived";
 import { acceptsInputs, matchesCapFilter, type CapFilter } from "../domain/capabilities";
-import { CLASS_META, estimate, RESPONSIVENESS_TEXT, type Estimate } from "../domain/estimator";
+import { CLASS_META, estimate, type Estimate } from "../domain/estimator";
 import { BUCKETS, bucketOf, recommend, type Bucket, type Recommendation } from "../domain/recommend";
 import type { ModelVariant, UseCase } from "../domain/types";
 import { fmtBytes, fmtParams } from "../lib/units";
-import { Avatar, FitPill, Seg, Switch, TONE_VAR, Empty } from "../components/ui";
+import { Avatar, FitPill, Seg, SpeedLabel, Switch, TONE_VAR, Empty } from "../components/ui";
 import { CapabilityLegend, CapabilityStrip, InputPicker } from "../components/Capabilities";
 import { BucketBadge } from "../components/SimilarModels";
 
@@ -391,13 +391,7 @@ export function ModelCard({ m, e, rec, rank }: { m: ModelVariant; e: Estimate; r
       <div className="mcard-foot">
         <div className="row" style={{ gap: 8 }}>
           {m.cloudOnly ? <FitPill cls={e.classification} short cloud /> : <BucketBadge bucket={bucketOf(e.classification)} />}
-          <span className="faint" style={{ fontSize: 13.5 }}>
-            {bench?.generationTokPerSec ? (
-              <b style={{ color: "var(--good)" }}>Measured {bench.generationTokPerSec.toFixed(0)} tok/s here</b>
-            ) : (
-              RESPONSIVENESS_TEXT[e.responsiveness]
-            )}
-          </span>
+          <SpeedLabel est={e} measured={bench?.generationTokPerSec} />
         </div>
         <button
           className={`btn sm ${inCompare ? "" : "ghost"}`}

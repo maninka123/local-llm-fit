@@ -226,3 +226,35 @@ export const APPLE_CHIPS: { name: string; options: number[] }[] = [...APPLE].rev
 
 /** Graphics cards (non-Apple) for autocomplete. */
 export const CARD_NAMES: string[] = [...NVIDIA, ...NVIDIA_LAPTOP, ...AMD, ...INTEL].map(([, s]) => s.name);
+
+// Published peak memory bandwidth (GB/s) per GPU / chip. Used ONLY for rough speed
+// guesses (decode speed is mostly memory-bandwidth bound). Keyed by canonical names above.
+const BANDWIDTH: Record<string, number> = {
+  "RTX PRO 6000 Blackwell": 1792, "RTX 6000 Ada": 960, "RTX 5000 Ada": 576, "RTX 4500 Ada": 432, "RTX 4000 Ada": 360, "RTX 2000 Ada": 224,
+  "RTX A6000": 768, "RTX A5000": 768, "RTX A4000": 448, "RTX A2000": 288,
+  "GeForce RTX 5090": 1792, "GeForce RTX 5080": 960, "GeForce RTX 5070 Ti": 896, "GeForce RTX 5070": 672, "GeForce RTX 5060 Ti": 448, "GeForce RTX 5060": 448,
+  "GeForce RTX 4090": 1008, "GeForce RTX 4080 / 4080 SUPER": 717, "GeForce RTX 4070 Ti SUPER": 672, "GeForce RTX 4070 Ti": 504, "GeForce RTX 4070 / 4070 SUPER": 504,
+  "GeForce RTX 4060 Ti": 288, "GeForce RTX 4060": 272,
+  "GeForce RTX 3090 / 3090 Ti": 936, "GeForce RTX 3080 Ti": 912, "GeForce RTX 3080": 760, "GeForce RTX 3070 / 3070 Ti": 448, "GeForce RTX 3060 Ti": 448,
+  "GeForce RTX 3060": 360, "GeForce RTX 3050": 224,
+  "GeForce RTX 2080 Ti": 616, "GeForce RTX 2080 / 2080 SUPER": 448, "GeForce RTX 2070 / 2070 SUPER": 448, "GeForce RTX 2060 SUPER": 448, "GeForce RTX 2060": 336,
+  "TITAN RTX": 672, "GeForce GTX 1660 series": 288, "GeForce GTX 1650": 128, "GeForce GTX 1080 Ti": 484, "GeForce GTX 1080": 320, "GeForce GTX 1070 / 1070 Ti": 256, "GeForce GTX 1060": 192,
+  "GeForce RTX 5090 Laptop GPU": 896, "GeForce RTX 5080 Laptop GPU": 896, "GeForce RTX 5070 Ti Laptop GPU": 672, "GeForce RTX 5070 Laptop GPU": 384, "GeForce RTX 5060 Laptop GPU": 384,
+  "GeForce RTX 4090 Laptop GPU": 576, "GeForce RTX 4080 Laptop GPU": 432, "GeForce RTX 4070 Laptop GPU": 256, "GeForce RTX 4060 Laptop GPU": 256, "GeForce RTX 4050 Laptop GPU": 192,
+  "GeForce RTX 3080 Ti Laptop GPU": 512, "GeForce RTX 3080 Laptop GPU": 448, "GeForce RTX 3070 Ti Laptop GPU": 448, "GeForce RTX 3070 Laptop GPU": 448, "GeForce RTX 3060 Laptop GPU": 336,
+  "GeForce RTX 3050 Ti Laptop GPU": 192, "GeForce RTX 3050 Laptop GPU": 192, "GeForce RTX 2080 (laptop)": 448, "GeForce RTX 2070 (laptop)": 448, "GeForce RTX 2060 (laptop)": 336,
+  "Radeon RX 9070 XT": 640, "Radeon RX 9070": 640, "Radeon RX 9060 XT": 320, "Radeon RX 7900 XTX": 960, "Radeon RX 7900 XT": 800, "Radeon RX 7900 GRE": 576,
+  "Radeon RX 7800 XT": 624, "Radeon RX 7700 XT": 432, "Radeon RX 7600 XT": 288, "Radeon RX 7600": 288, "Radeon RX 6900/6950 XT": 512, "Radeon RX 6800 / 6800 XT": 512,
+  "Radeon RX 6700/6750 XT": 384, "Radeon RX 6700": 320, "Radeon RX 6600 series": 224, "Radeon RX 6500 XT": 144, "Radeon PRO W7900": 864, "Radeon PRO W7800": 576,
+  "Arc B580": 456, "Arc B570": 380, "Arc A770": 512, "Arc A750": 512, "Arc A580": 512, "Arc A380": 186,
+  "Apple M1": 68, "Apple M1 Pro": 200, "Apple M1 Max": 400, "Apple M1 Ultra": 800,
+  "Apple M2": 100, "Apple M2 Pro": 200, "Apple M2 Max": 400, "Apple M2 Ultra": 800,
+  "Apple M3": 100, "Apple M3 Pro": 150, "Apple M3 Max": 350, "Apple M3 Ultra": 819,
+  "Apple M4": 120, "Apple M4 Pro": 273, "Apple M4 Max": 480, "Apple M5": 153,
+};
+
+/** Peak memory bandwidth for a GPU/chip name, when known. */
+export function bandwidthFor(name: string | null | undefined): number | null {
+  const spec = lookupGpu(name);
+  return spec ? (BANDWIDTH[spec.name] ?? null) : null;
+}

@@ -88,3 +88,12 @@ export function fmtKiB(r: Range): string {
   const k = (b: number) => (b >= 10 * KiB ? Math.round(b / KiB) : +(b / KiB).toFixed(1));
   return isExact(r) ? `${k(r.mid)} KiB` : `${k(r.low)}–${k(r.high)} KiB`;
 }
+
+/** "≈ 25–40 tok/s" style label for a speed range. */
+export function fmtSpeed(r: Range): string {
+  const f = (n: number) => (n >= 10 ? String(Math.round(n)) : n >= 1 ? n.toFixed(1).replace(/\.0$/, "") : n.toFixed(1));
+  if (r.high < 1) return "< 1 tok/s";
+  const lo = f(r.low);
+  const hi = f(r.high);
+  return lo === hi ? `≈ ${lo} tok/s` : `≈ ${lo}–${hi} tok/s`;
+}

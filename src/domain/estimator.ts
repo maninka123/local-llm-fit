@@ -1,4 +1,4 @@
-import { addRanges, clamp, exact, fmtBytes, fmtRange, GiB, KiB, range, scaleRange, type Range } from "../lib/units";
+import { addRanges, clamp, exact, fmtBytes, fmtRange, fmtSpeed, GiB, KiB, range, scaleRange, type Range } from "../lib/units";
 import { resolveInput } from "./capabilities";
 import { quantInfo } from "./quant";
 import type { Artifact, MemoryArchitecture, ModelVariant, Provenance, QuantId } from "./types";
@@ -104,6 +104,8 @@ export interface MachineProfile {
   unifiedGpuLimitSource: "detected" | "user" | "assumed";
   /** Whether the GPU vendor has an Ollama GPU backend (null = unknown). */
   gpuBackendSupported: boolean | null;
+  /** Published peak memory bandwidth of the GPU / Apple chip in GB/s (null = unknown). Speed guesses only. */
+  gpuBandwidthGBs?: number | null;
   label: string;
 }
 
@@ -180,6 +182,49 @@ export interface Estimate {
   assumptions: string[];
   imageTokens: number;
   isMoE: boolean;
+  /** Rough generation-speed guess in tokens/second (null when it can't run or bandwidth is unknown). */
+  speed: SpeedGuess | null;
+}
+
+export interface SpeedGuess {
+  /** tokens per second */
+  range: Range;
+  /** GB read from memory per generated token */
+  gbPerToken: number;
+  gpuBandwidthGBs: number | null;
+  cpuShare: number;
+}
+
+/**
+ * Decode speed is mostly memory-bandwidth bound: every token reads the active weights plus
+ * the KV cache. time/token = GPU bytes ÷ GPU bandwidth + CPU bytes ÷ RAM bandwidth + overhead.
+ * Real software reaches ~50–80% of peak bandwidth, hence a range. Never shown as exact.
+ */
+export function guessSpeed(
+  cls: FitClass,
+  placement: Placement | null,
+  activeBytes: number,
+  kvPerTokenBytes: number,
+  settings: EstimatorSettings,
+  machine: MachineProfile,
+): SpeedGuess | null {
+  if (!placement || cls === "cannot_fit" || cls === "unknown") return null;
+  const perToken = activeBytes + kvPerTokenBytes * Math.min(settings.contextTokens, 4096);
+  const cpuOnly = machine.arch === "cpu_only" || machine.arch === "integrated_shared" || machine.gpuBackendSupported === false;
+  const f = cpuOnly ? 0 : placement.gpuFraction;
+  const bw = machine.gpuBandwidthGBs ?? null;
+  if (f > 0 && bw == null) return null;
+  const unified = machine.arch === "unified";
+  const gpuEff = unified ? [0.55, 0.68, 0.8] : [0.5, 0.65, 0.8];
+  // CPU side: unified Macs read the same pool (CPU reaches less of it); PCs read system RAM.
+  const cpuBw = unified && bw ? [bw * 0.35, bw * 0.45, bw * 0.55] : [45 * 0.45, 65 * 0.58, 90 * 0.7];
+  const overhead = f >= 0.999 ? 0.0015 : f <= 0.001 ? 0.004 : 0.006;
+  const at = (i: number) => {
+    const gpuTime = f > 0 && bw ? (f * perToken) / (bw * gpuEff[i] * 1e9) : 0;
+    const cpuTime = ((1 - f) * perToken) / (cpuBw[i] * 1e9);
+    return 1 / (gpuTime + cpuTime + overhead);
+  };
+  return { range: { low: at(0), mid: at(1), high: at(2) }, gbPerToken: perToken / 1e9, gpuBandwidthGBs: bw, cpuShare: 1 - f };
 }
 
 // ------------------------------------------------------------------ helpers
@@ -662,6 +707,18 @@ export function estimate(model: ModelVariant, settings: EstimatorSettings, machi
   }
   if (!act.active && weights) assumptions.push("Active parameters unknown: speed hints conservatively assume every weight is read for each token.");
 
+  const textWeights = weights && w.text ? w.text.mid : 0;
+  const speed = weights ? guessSpeed(classification, placement, act.active?.mid ?? textWeights, kv.perToken.mid, settings, machine) : null;
+  if (speed) {
+    responsiveness = speed.range.mid >= 25 ? "likely_fast" : speed.range.mid >= 8 ? "reasonable" : "potentially_slow";
+    equations.push({
+      label: "Speed guess",
+      value: fmtSpeed(speed.range),
+      detail: `≈ ${speed.gbPerToken.toFixed(2)} GB read per token${speed.gpuBandwidthGBs ? ` · GPU ${speed.gpuBandwidthGBs} GB/s` : ""}${speed.cpuShare > 0.001 ? ` · ${Math.round(speed.cpuShare * 100)}% from RAM` : ""} · 50–80% of peak bandwidth`,
+      provenance: "heuristic",
+    });
+  }
+
   // ---- context checks
   const ctxMax = model.contextMax.value ?? model.arch?.contextLength ?? null;
   if (ctxMax && settings.contextTokens > ctxMax)
@@ -749,6 +806,7 @@ export function estimate(model: ModelVariant, settings: EstimatorSettings, machi
     assumptions,
     imageTokens,
     isMoE: moe,
+    speed,
   };
 }
 

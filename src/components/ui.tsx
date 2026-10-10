@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { X } from "lucide-react";
 import { CLASS_META, type EstConfidence, type FitClass } from "../domain/estimator";
+import { fmtSpeed } from "../lib/units";
 import type { Provenance } from "../domain/types";
 
 // ------------------------------------------------------------------ motion helpers
@@ -242,5 +243,29 @@ export function Empty({ icon, title, children }: { icon: ReactNode; title: strin
       <b style={{ color: "var(--text)", fontSize: 17 }}>{title}</b>
       {children}
     </div>
+  );
+}
+
+/** Rough tokens/second guess (or a measured value), colour-coded, with an explanation on hover. */
+export function SpeedLabel({ est, measured, large }: { est: import("../domain/estimator").Estimate; measured?: number | null; large?: boolean }) {
+  if (measured)
+    return (
+      <span className={`speed tone-good ${large ? "large" : ""}`} data-tip="Measured on this computer with a local test" tabIndex={0}>
+        Measured {measured.toFixed(measured >= 10 ? 0 : 1)} tok/s
+      </span>
+    );
+  if (!est.speed)
+    return (
+      <span className={`speed muted ${large ? "large" : ""}`} data-tip={est.classification === "cannot_fit" ? "Too large to run here" : "Speed unknown: this GPU's memory speed isn't in our table"} tabIndex={0}>
+        {est.classification === "cannot_fit" ? "Won't run" : est.classification === "unknown" ? "Speed unknown" : "Speed unknown"}
+      </span>
+    );
+  const tone = est.responsiveness === "likely_fast" ? "tone-good" : est.responsiveness === "reasonable" ? "tone-warn" : "tone-orange";
+  const s = est.speed;
+  const tip = `Rough guess: about ${s.gbPerToken.toFixed(1)} GB is read per word${s.gpuBandwidthGBs ? ` from ${s.gpuBandwidthGBs} GB/s memory` : ""}${s.cpuShare > 0.001 ? `, ${Math.round(s.cpuShare * 100)}% from slower RAM` : ""}.${est.classification === "memory_constrained" ? " Only if you close other apps." : ""} Run a test for the real number.`;
+  return (
+    <span className={`speed ${tone} ${large ? "large" : ""}`} data-tip={tip} tabIndex={0}>
+      {fmtSpeed(s.range)}
+    </span>
   );
 }

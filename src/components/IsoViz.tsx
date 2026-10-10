@@ -155,7 +155,7 @@ export function IsoViz({ est, machine }: { est: Estimate; machine: MachineProfil
   const activeKeys = useMemo(() => (dense ? new Set<string>() : pickActive(weightKeys, activeN)), [dense, weightKeys.join(), activeN, tick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---- containers
-  const containers: { title: string; sub: string; side: number; levels: number; blocks: Block[]; limitLevel?: number | null; note?: string }[] = [];
+  const containers: { title: string; sub: string; side: number; levels: number; blocks: Block[]; limitLevel?: number | null; overflow?: number }[] = [];
   const box = (capBytes: number) => {
     const cap = Math.max(1, Math.round(capBytes / unit));
     const side = Math.min(7, Math.max(3, Math.ceil(Math.sqrt(cap / 3))));
@@ -163,7 +163,9 @@ export function IsoViz({ est, machine }: { est: Estimate; machine: MachineProfil
   };
   // Parts are given in BYTES; convert to blocks so rounding never invents an overflow:
   // only bytes beyond the real capacity become red "doesn't fit" blocks.
+  let lastOverflow = 0;
   const fill = (capBytes: number, capBlocks: number, side: number, partsBytes: [Kind, number][], prefix: string) => {
+    lastOverflow = 0;
     const totalBytes = partsBytes.reduce((a, [, b]) => a + b, 0);
     const counts: [Kind, number][] = partsBytes.map(([k, b]) => [k, n(b)]);
     let sum = counts.reduce((a, [, c]) => a + c, 0);
@@ -173,8 +175,15 @@ export function IsoViz({ est, machine }: { est: Estimate; machine: MachineProfil
       counts[big][1]--;
       sum--;
     }
-    const blocks = stack(counts, side, 0, prefix);
-    if (totalBytes > capBytes) for (const b of blocks.slice(capBlocks)) b.kind = "over";
+    let blocks = stack(counts, side, 0, prefix);
+    if (totalBytes > capBytes) {
+      for (const b of blocks.slice(capBlocks)) b.kind = "over";
+      // Show a short spill of red blocks, not a tower: the exact amount goes in the caption.
+      const maxOver = side * side * 2;
+      const overBlocks = blocks.length - capBlocks;
+      if (overBlocks > maxOver) blocks = blocks.slice(0, capBlocks + maxOver);
+      lastOverflow = totalBytes - capBytes;
+    }
     return blocks;
   };
 
@@ -187,6 +196,7 @@ export function IsoViz({ est, machine }: { est: Estimate; machine: MachineProfil
       side: v.side,
       levels: v.levels,
       blocks: fill(p.vramPhysical, v.cap, v.side, [["res", reserve], ["w", pl?.gpuWeights ?? 0], ["kv", pl?.gpuKv ?? 0], ["rt", pl?.gpuOther ?? 0]], "v"),
+      overflow: lastOverflow,
     });
   }
   if (p.ramPhysical != null) {
@@ -202,6 +212,7 @@ export function IsoViz({ est, machine }: { est: Estimate; machine: MachineProfil
       side: r.side,
       levels: r.levels,
       blocks: fill(p.ramPhysical, r.cap, r.side, parts, "r"),
+      overflow: lastOverflow,
       limitLevel,
     });
   }
@@ -240,7 +251,11 @@ export function IsoViz({ est, machine }: { est: Estimate; machine: MachineProfil
 
   return (
     <div className="isoviz" ref={ref}>
-      <div className="iso-row" ref={rowRef} style={{ ["--iso-s" as string]: scale.toFixed(3) }}>
+      <div
+        className="iso-row"
+        ref={rowRef}
+        style={{ ["--iso-s" as string]: scale.toFixed(3), gridTemplateColumns: ["auto", ...containers.flatMap(() => ["minmax(48px, 1fr)", "auto"])].join(" ") }}
+      >
         <div className="iso-col model">
           <div className="iso-title">The model</div>
           <ModelCube blocks={modelBlocks} activeKeys={activeKeys} label={`Model weights ${fmtBytes(W)}`} />
@@ -253,7 +268,7 @@ export function IsoViz({ est, machine }: { est: Estimate; machine: MachineProfil
               </>
             )}
           </div>
-          <div className="iso-hint">{dense ? "Dense: every block works on every word." : est.active ? "Glowing blocks: experts used for one word. They change every word." : "Active size unknown."}</div>
+          <div className="iso-hint">{dense ? "Dense: every block works on every word." : est.active ? "Glowing = experts working on this word." : "Active size unknown."}</div>
         </div>
         <div className="iso-arrow" aria-hidden>
           <span className="flow-dots">
@@ -284,7 +299,10 @@ export function IsoViz({ est, machine }: { est: Estimate; machine: MachineProfil
             <div className="iso-col">
               <div className="iso-title">{c.title}</div>
               <Container side={c.side} levels={c.levels} blocks={c.blocks} limitLevel={c.limitLevel} label={`${c.title}: ${c.sub}`} />
-              <div className="iso-sub">{c.sub}</div>
+              <div className="iso-sub">
+                {c.sub}
+                {c.overflow ? <div className="iso-over">+{fmtBytes(c.overflow)} doesn't fit</div> : null}
+              </div>
             </div>
           </Fragment>
         ))}

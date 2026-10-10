@@ -2,12 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, ArrowLeft, BadgeCheck, ChevronDown, Columns3, Download, ExternalLink, FlaskConical, Info, Layers, RefreshCw, ShieldAlert, Sparkles, OctagonAlert } from "lucide-react";
 import { useStore } from "../state/store";
 import { ageText, isStale, latestBenchmark, quantFor, useMachine } from "../state/derived";
-import { estimate, publishedQuants, RESPONSIVENESS_TEXT, CLASS_META, type Estimate, type EstimatorSettings } from "../domain/estimator";
+import { estimate, publishedQuants, CLASS_META, type Estimate, type EstimatorSettings } from "../domain/estimator";
 import { QUANT_SELECTOR, quantInfo } from "../domain/quant";
 import { resolveInput } from "../domain/capabilities";
 import type { ModelVariant, QuantId } from "../domain/types";
 import { fmtBytes, fmtKiB, fmtParams, fmtRange, fmtTokens } from "../lib/units";
-import { AnimatedBytes, Avatar, ConfidenceMeter, FitPill, Modal, Prov, Seg, Switch, TONE_VAR, Empty } from "../components/ui";
+import { AnimatedBytes, Avatar, ConfidenceMeter, FitPill, Modal, Prov, Seg, Switch, TONE_VAR, Empty, SpeedLabel } from "../components/ui";
 import { CapabilityPanel, CapabilityStrip } from "../components/Capabilities";
 import { MemoryViz } from "../components/MemoryViz";
 import { BenchmarkPanel } from "../components/BenchmarkPanel";
@@ -122,7 +122,7 @@ function Detail({ m }: { m: ModelVariant }) {
             <div className="row">
               <FitPill cls={est.classification} cloud={m.cloudOnly} />
               <ConfidenceMeter c={est.confidence} />
-              <span className="badge">Responsiveness: {RESPONSIVENESS_TEXT[est.responsiveness]}</span>
+              <SpeedLabel est={est} measured={bench?.generationTokPerSec} />
               {est.quantSource !== "published" && <span className="badge estimated">Hypothetical {quantInfo(quant).label} size</span>}
             </div>
             <h2>Can this model fit? {est.headline}.</h2>

@@ -3235,3 +3235,125 @@ input[type="range"]::-moz-range-thumb {
 .stepper button:active {
   transform: scale(0.92);
 }
+
+/* Aligned columns: titles on one line, drawings centred in a shared area, captions on one line */
+.iso-row {
+  align-items: stretch;
+}
+.iso-row > .iso-col,
+.iso-row > .iso-col.model {
+  display: grid;
+  grid-template-rows: auto 1fr auto auto;
+  justify-items: center;
+  align-content: stretch;
+}
+.iso-row > .iso-col > .iso {
+  align-self: center;
+}
+.iso-row > .iso-col > .iso-title {
+  align-self: start;
+}
+.iso-row > .iso-arrow {
+  align-self: center;
+  padding-bottom: 0;
+}
+.iso-over {
+  color: var(--bad);
+  font-weight: 650;
+  margin-top: 2px;
+}
+
+/* One shared grid: every column's title, drawing and caption sit on common rows. */
+.iso-row {
+  display: grid;
+  grid-template-rows: auto 1fr auto auto;
+  column-gap: 8px;
+  row-gap: 8px;
+  align-items: stretch;
+  justify-content: center;
+}
+.iso-row > .iso-col,
+.iso-row > .iso-col.model {
+  grid-row: 1 / span 4;
+  display: grid;
+  grid-template-rows: subgrid;
+  gap: 8px;
+}
+.iso-row > .iso-arrow {
+  grid-row: 1 / span 4;
+  align-self: center;
+  justify-self: stretch;
+  max-width: none;
+}
+@container (max-width: 430px) {
+  .iso-row {
+    grid-template-columns: 1fr !important;
+    grid-template-rows: none;
+  }
+  .iso-row > .iso-col,
+  .iso-row > .iso-arrow {
+    grid-row: auto;
+  }
+}
+.iso-row > .iso-col > .iso-sub,
+.iso-row > .iso-col > .iso-hint {
+  align-self: start;
+  margin: 0;
+}
+.iso-row > .iso-col > .iso-title {
+  align-self: end;
+}
+
+/* ------------------------------------------------------------------ speed guess */
+.speed {
+  display: inline-flex;
+  align-items: center;
+  font-weight: 650;
+  font-size: 14px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  background: none !important;
+  border: 0 !important;
+  padding: 0;
+  cursor: help;
+}
+.speed.muted {
+  color: var(--text-3);
+  font-weight: 500;
+}
+.speed.large {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.bucket-badge {
+  white-space: nowrap;
+}
+.similar-card {
+  padding: 16px 14px 14px;
+  gap: 10px;
+}
+.similar-card > .row {
+  padding-right: 28px;
+}
+.similar-card .avatar {
+  width: 38px;
+  height: 38px;
+  font-size: 14px;
+}
+.similar-card .mname {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  overflow-wrap: normal;
+  font-size: 15px;
+}
+.similar-card .bucket-badge {
+  font-size: 13px;
+  height: 28px;
+  padding: 0 10px;
+}
+.similar-card .row > div {
+  min-width: 0;
+}
