@@ -1,0 +1,38 @@
+[workspace]
+members = [".", "hwprobe"]
+resolver = "2"
+
+[package]
+name = "model-fit-explorer"
+version = "1.0.0"
+description = "Local AI Model Fit Explorer"
+authors = ["Pasindu Ranasinghe"]
+license = "MIT"
+edition = "2021"
+rust-version = "1.80"
+
+[lib]
+name = "model_fit_explorer_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+hwprobe = { path = "hwprobe" }
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
+futures-util = "0.3"
+base64 = "0.22"
+url = "2"
+dirs = "6"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

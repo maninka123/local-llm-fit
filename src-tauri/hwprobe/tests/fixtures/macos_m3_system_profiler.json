@@ -1,0 +1,50 @@
+{
+ "SPDisplaysDataType": [
+  {
+   "_name": "Apple M3",
+   "spdisplays_mtlgpufamilysupport": "spdisplays_metal4",
+   "spdisplays_ndrvs": [
+    {
+     "_name": "Color LCD",
+     "_spdisplays_display-product-id": "REDACTED",
+     "_spdisplays_display-serial-number": "REDACTED",
+     "_spdisplays_display-vendor-id": "610",
+     "_spdisplays_display-week": "0",
+     "_spdisplays_display-year": "0",
+     "_spdisplays_displayID": "1",
+     "_spdisplays_pixels": "3420 x 2214",
+     "_spdisplays_resolution": "1710 x 1107 @ 60.00Hz",
+     "spdisplays_ambient_brightness": "spdisplays_yes",
+     "spdisplays_connection_type": "spdisplays_internal",
+     "spdisplays_display_type": "spdisplays_built-in-liquid-retina",
+     "spdisplays_main": "spdisplays_yes",
+     "spdisplays_mirror": "spdisplays_off",
+     "spdisplays_online": "spdisplays_yes",
+     "spdisplays_pixelresolution": "spdisplays_2880x1864Retina"
+    }
+   ],
+   "spdisplays_vendor": "sppci_vendor_Apple",
+   "sppci_bus": "spdisplays_builtin",
+   "sppci_cores": "10",
+   "sppci_device_type": "spdisplays_gpu",
+   "sppci_model": "Apple M3"
+  }
+ ],
+ "SPHardwareDataType": [
+  {
+   "_name": "hardware_overview",
+   "activation_lock_status": "REDACTED",
+   "boot_rom_version": "20457.1.29",
+   "chip_type": "Apple M3",
+   "machine_model": "Mac15,13",
+   "machine_name": "MacBook Air",
+   "model_number": "MXD23X/A",
+   "number_processors": "proc 8:0:4:4",
+   "os_loader_version": "20457.1.29",
+   "physical_memory": "16 GB",
+   "platform_UUID": "REDACTED",
+   "provisioning_UDID": "REDACTED",
+   "serial_number": "REDACTED"
+  }
+ ]
+}
