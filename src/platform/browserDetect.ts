@@ -134,14 +134,29 @@ export function suggestSetup(sig: BrowserSignals): BrowserSetup {
 export function buildBrowserReport(sig: BrowserSignals, setup: BrowserSetup): HardwareReport {
   const confirmed = setup.confirmed;
   const answer = confirmed ? "You confirmed" : "Suggested (not yet confirmed)";
-  const spec = lookupGpu(setup.gpuName ?? sig.gpuName);
+  // "No graphics card" confirmed by the user wins over whatever the browser detected.
+  const userSaidNone = confirmed && setup.gpuName == null;
+  const spec = userSaidNone ? null : lookupGpu(setup.gpuName ?? sig.gpuName);
   const gpuName = setup.gpuName ?? spec?.name ?? sig.gpuName ?? "Unknown GPU";
   const unified = spec?.kind === "unified";
   const assumedRam = setup.ramGiB == null;
   const ramGiB = setup.ramGiB ?? (unified ? (spec?.unifiedOptionsGB?.[0] ?? 16) : 16);
 
   const gpus: GpuDevice[] = [];
-  if (spec || sig.gpuName) {
+  if (userSaidNone) {
+    // Built-in graphics share RAM and aren't used by Ollama: models run on the CPU.
+    const seen = lookupGpu(sig.gpuName);
+    gpus.push({
+      id: "gpu0",
+      name: seen?.kind === "integrated" ? seen.name : "Built-in graphics",
+      vendor: seen?.kind === "integrated" ? seen.vendor : "unknown",
+      kind: "integrated",
+      dedicatedBytes: f<number>(null, answer, "medium", "Built-in graphics share system RAM"),
+      freeBytes: f<number>(null, "Browser", "none", "Not applicable"),
+      sharedBytes: f<number>(null, "Browser", "none", "Not applicable"),
+      backendHints: [],
+    });
+  } else if (spec || sig.gpuName) {
     const kind = spec?.kind ?? (setup.vramGiB ? "discrete" : "unknown");
     const g: GpuDevice = {
       id: "gpu0",

@@ -95,7 +95,7 @@ export function Playground() {
         <div>
           <div className="eyebrow">Playground</div>
           <h1>Build a model. See where it fits.</h1>
-          <p>Drag the size, choose precision and context, and watch the model's memory blocks settle into your graphics memory and RAM.</p>
+          <p>Drag the size, choose precision and context, and watch the model's memory blocks settle into your computer's memory.</p>
         </div>
         <button className="btn primary" onClick={() => navigate({ page: "run" })}>
           What can I run? <ArrowRight size={16} />

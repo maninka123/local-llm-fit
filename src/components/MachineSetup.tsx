@@ -356,7 +356,7 @@ function MineForm({ onDone }: { onDone?: () => void }) {
   const CHOICES: { id: GpuChoice; title: string; sub: string; icon: React.ReactNode }[] = [
     { id: "card", title: "Graphics card", sub: "NVIDIA, AMD Radeon or Intel Arc", icon: <Monitor size={24} /> },
     { id: "apple", title: "Apple Silicon", sub: "Mac with an M1–M5 chip", icon: <Apple size={24} /> },
-    { id: "none", title: "Built-in / not sure", sub: "Models run on the CPU", icon: <Cpu size={24} /> },
+    { id: "none", title: "No graphics card", sub: "Built-in graphics, or not sure", icon: <Cpu size={24} /> },
   ];
 
   return (
@@ -432,7 +432,7 @@ function MineForm({ onDone }: { onDone?: () => void }) {
         )}
         {choice === "none" && (
           <p className="field-hint appear" style={{ marginTop: 12 }} key="none">
-            No problem: we'll estimate how models run on the processor using system memory.
+            Models will load into system memory and run on the processor. That's slower than a graphics card, so the estimates stay on the safe side.
           </p>
         )}
       </div>

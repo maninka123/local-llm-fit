@@ -111,3 +111,17 @@ describe("update notes", () => {
     expect(parseReleaseNotes("• One\n• Two")).toEqual(["One", "Two"]);
   });
 });
+
+describe('"No graphics card" answer', () => {
+  const none = { confirmed: true, gpuName: null, vramGiB: null, ramGiB: 16, formFactor: "laptop" as const };
+  it("wins over a detected Apple, NVIDIA or Intel GPU: models run on the CPU", () => {
+    for (const name of ["Apple M3", "NVIDIA GeForce RTX 4070", "Intel(R) Iris(R) Xe Graphics"]) {
+      const r = buildBrowserReport(sig(name, name.startsWith("Apple") ? { os: { name: "macOS", version: "15", arch: "arm" } } : {}), none);
+      expect(r.memoryArchitecture.value, name).toBe("integrated_shared");
+      const m = buildMachineProfile(r, EMPTY_OVERRIDES);
+      const e = estimate(model({ total: 3, dense: true }), DEFAULT_SETTINGS, m);
+      expect(e.classification, name).toBe("cpu_only");
+      expect(`${e.headline} ${e.summary}`).not.toMatch(/fits? (entirely |fully )?in (the )?GPU|GPU-usable/i);
+    }
+  });
+});

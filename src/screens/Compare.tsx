@@ -20,6 +20,8 @@ export function Compare() {
   const per = useStore((s) => s.perModelQuant);
   const benches = useStore((s) => s.benchmarks);
   const machine = useMachine();
+  // Machines where Ollama can't use a GPU: everything lives in RAM.
+  const gpuRuns = !!machine && machine.gpuBackendSupported !== false && (machine.arch === "unified" || (machine.arch === "discrete" && machine.gpus.length > 0));
 
   const rows = useMemo(() => {
     if (!machine) return [];
@@ -145,13 +147,13 @@ export function Compare() {
             const b = latestBenchmark(benches, m);
             return <SpeedLabel key={m.id} est={e} measured={b?.generationTokPerSec} />;
           }))}
-          {line("Expected residency", rows.map(({ m, e }) => <span key={m.id}>{e.placement ? `${Math.round(e.placement.gpuFraction * 100)}% GPU (planned)` : "—"}</span>))}
+          {line("Expected residency", rows.map(({ m, e }) => <span key={m.id}>{e.placement ? (gpuRuns ? `${Math.round(e.placement.gpuFraction * 100)}% GPU (planned)` : "RAM · runs on the CPU") : "—"}</span>))}
           {line("Total / active params", rows.map(({ m }) => <span key={m.id} className="num">{fmtParams(m.totalParamsB.value)} / {m.activeParamsB.value != null ? fmtParams(m.activeParamsB.value) : m.architecture.value === "dense" ? "all" : "Unknown"}</span>))}
           {line("Architecture", rows.map(({ m }) => <span key={m.id}>{m.architecture.value === "moe" ? `MoE${m.arch?.expertCount ? ` · ${m.arch.expertUsedCount}/${m.arch.expertCount} experts` : ""}` : m.architecture.value === "dense" ? "Dense" : "Unknown"} <Prov p={m.architecture.provenance} /></span>))}
           {line("Quantization", rows.map(({ m, e }) => <span key={m.id}>{e.artifact?.quantLabel ?? quantInfo(e.quant).label} <span className="faint">{e.quantSource === "published" ? "published" : "hypothetical"}</span></span>))}
           {line("Weights", rows.map(({ m, e }) => <span key={m.id} className="num">{e.weights ? fmtRange(e.weights, "GB") : "Unknown"} <Prov p={e.weightsProvenance} /></span>))}
           {line("KV cache", rows.map(({ m, e }) => <span key={m.id} className="num">{fmtRange(e.kv)} <Prov p={e.kvMethod === "metadata" ? "derived" : "heuristic"} /></span>))}
-          {line("Runtime budget", rows.map(({ m, e }) => <span key={m.id} className="num">{fmtRange(e.gpuRuntime)} GPU · {fmtRange(e.hostRuntime)} host</span>))}
+          {line("Runtime budget", rows.map(({ m, e }) => <span key={m.id} className="num">{gpuRuns ? `${fmtRange(e.gpuRuntime)} GPU · ${fmtRange(e.hostRuntime)} host` : `${fmtRange(e.gpuRuntime)} buffers · ${fmtRange(e.hostRuntime)} host (all in RAM)`}</span>))}
           {line("Total need", rows.map(({ m, e }) => <b key={m.id} className="num">{e.totalNeed ? fmtRange(e.totalNeed) : "Unknown"}</b>))}
           {line("Modalities", rows.map(({ m }) => {
             const l = modalityLabel(m.capabilities);

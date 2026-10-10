@@ -2,6 +2,11 @@
 
 Short, user-facing notes. The section for each version is shown in the app's update window.
 
+## 1.0.17
+- While a sample is shown, the top bar also shows your own computer, with one click back to it
+- "No graphics card" now always means models run on the CPU, even if a GPU was detected
+- Compare and Playground no longer mention GPU memory on computers without a usable GPU
+
 ## 1.0.16
 - Samples: one "Single-board & edge AI" option, then choose the board
 - Boards show their GPU and say clearly whether Ollama can use it

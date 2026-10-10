@@ -57,3 +57,28 @@ describe("single-board & edge samples", () => {
     expect(orin).toBeGreaterThan(pi * 3);
   });
 });
+
+describe("machines where Ollama can't use a GPU never show GPU results", () => {
+  const cpuMachines = DEMO_MACHINES.filter((d) => ["cpu_only", "integrated_shared"].includes(d.report.memoryArchitecture.value ?? ""));
+  const models = [
+    model({ total: 1, dense: true }),
+    model({ total: 8, dense: true, arch: ARCH_8B }),
+    model({ total: 30, active: 3, moe: true, arch: { ...ARCH_8B, layers: 48, expertCount: 128, expertUsedCount: 8 } }),
+    model({ total: 70, dense: true, arch: { ...ARCH_8B, layers: 80 } }),
+  ];
+  it("covers the office laptop and the boards", () => expect(cpuMachines.length).toBeGreaterThanOrEqual(6));
+  for (const d of cpuMachines) {
+    it(d.id, () => {
+      const p = buildMachineProfile(d.report, EMPTY_OVERRIDES);
+      for (const m of models) {
+        for (const memoryBasis of ["live", "planning"] as const) {
+          const e = estimate(m, settings({ memoryBasis }), p);
+          expect(["cpu_only", "memory_constrained", "cannot_fit"]).toContain(e.classification);
+          expect(e.placement?.gpuFraction ?? 0).toBe(0);
+          expect(e.speed?.gpuTimeShare ?? 0).toBe(0);
+          expect(`${e.headline} ${e.summary}`).not.toMatch(/fits? (entirely |fully )?in (the )?GPU|GPU-usable|on the GPU/i);
+        }
+      }
+    });
+  }
+});
