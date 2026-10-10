@@ -3493,3 +3493,76 @@ input[type="range"]::-moz-range-thumb {
   font-size: 12.5px;
   padding: 0 9px;
 }
+
+/* ------------------------------------------------------------------ where the work happens */
+.vox.lit-slow {
+  --k: var(--orange);
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--orange) 80%, transparent));
+}
+.work-row {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+.work-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 980px;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--tone);
+  background: color-mix(in srgb, var(--tone) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--tone) 28%, transparent);
+  transition: color 300ms, background 300ms;
+}
+.work-bars {
+  display: grid;
+  gap: 6px;
+  flex: 1;
+  min-width: 240px;
+  max-width: 460px;
+}
+.work-bar {
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  align-items: center;
+  gap: 8px;
+}
+.work-label {
+  font-size: 13px;
+  color: var(--text-3);
+  font-weight: 600;
+}
+.work-track {
+  display: flex;
+  height: 18px;
+  border-radius: 99px;
+  overflow: hidden;
+  background: var(--seg-track);
+}
+.work-gpu,
+.work-cpu {
+  display: grid;
+  place-items: center;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  transition: width var(--dur) var(--ease);
+}
+.work-gpu {
+  background: var(--seg-weights);
+}
+.work-cpu {
+  background: var(--orange);
+}
+
+.sw.lit-slow-sw {
+  background: var(--orange);
+  box-shadow: 0 0 6px var(--orange);
+}

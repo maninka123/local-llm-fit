@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Zap } from "lucide-react";
 import type { Estimate, MachineProfile } from "../domain/estimator";
 import { fmtBytes, GiB } from "../lib/units";
 
@@ -44,10 +45,10 @@ function stack(counts: [Kind, number][], side: number, startIndex = 0, keyPrefix
   return out;
 }
 
-function Voxel({ b, glow }: { b: Block; glow?: boolean }) {
+function Voxel({ b, glow }: { b: Block; glow?: boolean | "fast" | "slow" }) {
   const [ox, oy] = iso(b.x, b.y, b.z);
   return (
-    <g className={`vox k-${b.kind} ${glow ? "lit" : ""}`} style={{ transform: `translate(${ox}px, ${oy}px)` }}>
+    <g className={`vox k-${b.kind} ${glow === "slow" ? "lit-slow" : glow ? "lit" : ""}`} style={{ transform: `translate(${ox}px, ${oy}px)` }}>
       <polygon className="f-l" points={LEFT} />
       <polygon className="f-r" points={RIGHT} />
       <polygon className="f-t" points={TOP} />
@@ -59,7 +60,7 @@ function sortBlocks(bs: Block[]) {
   return [...bs].sort((a, b) => a.z - b.z || a.x + a.y - (b.x + b.y));
 }
 
-function Container({ side, levels, blocks, limitLevel, label }: { side: number; levels: number; blocks: Block[]; limitLevel?: number | null; label: string }) {
+function Container({ side, levels, blocks, limitLevel, label, lit }: { side: number; levels: number; blocks: Block[]; limitLevel?: number | null; label: string; lit?: Map<string, "fast" | "slow"> }) {
   const h = Math.max(levels, 1);
   const top = (z: number) => pts([iso(0, 0, z), iso(side, 0, z), iso(side, side, z), iso(0, side, z)]);
   const [minX] = iso(0, side, 0);
@@ -81,7 +82,7 @@ function Container({ side, levels, blocks, limitLevel, label }: { side: number; 
       <polygon className="glass-wall" points={pts([iso(0, 0, 0), iso(side, 0, 0), iso(side, 0, h), iso(0, 0, h)])} />
       <polygon className="glass-wall" points={pts([iso(0, 0, 0), iso(0, side, 0), iso(0, side, h), iso(0, 0, h)])} />
       {sortBlocks(blocks).map((b) => (
-        <Voxel key={b.key} b={b} />
+        <Voxel key={b.key} b={b} glow={lit?.get(b.key)} />
       ))}
       {/* front edges */}
       <polyline className="glass-edge" points={pts([iso(0, side, 0), iso(side, side, 0), iso(side, 0, 0)])} />
@@ -219,6 +220,36 @@ export function IsoViz({ est, machine }: { est: Estimate; machine: MachineProfil
 
   const offload = pl ? pl.cpuWeights : 0;
 
+  // Where each word's active work happens: GPU-resident vs RAM-resident weight blocks.
+  const gpuShare = unifiedLike && !isUnified ? 0 : (pl?.gpuFraction ?? 1);
+  const fastKeys = containers.flatMap((c) => c.blocks.filter((b) => b.kind === "w").map((b) => b.key));
+  const slowKeys = containers.flatMap((c) => c.blocks.filter((b) => b.kind === "wo").map((b) => b.key));
+  const containerLit = useMemo(() => {
+    const map = new Map<string, "fast" | "slow">();
+    if (dense || !est.active || activeN === 0) return map;
+    let kFast = Math.min(fastKeys.length, Math.round(activeN * gpuShare));
+    let kSlow = Math.min(slowKeys.length, activeN - kFast);
+    if (gpuShare < 0.999 && slowKeys.length && kSlow === 0) {
+      kSlow = 1;
+      kFast = Math.max(0, kFast - 1);
+    }
+    for (const k of pickActive(fastKeys, kFast)) map.set(k, "fast");
+    for (const k of pickActive(slowKeys, kSlow)) map.set(k, "slow");
+    return map;
+  }, [dense, est.active, activeN, gpuShare, fastKeys.join(), slowKeys.join(), tick]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const timeGpu = est.speed?.gpuTimeShare ?? null;
+  const gpuLed = timeGpu != null ? timeGpu >= 0.5 : gpuShare >= 0.7;
+  const status =
+    gpuShare >= 0.999
+      ? { text: "All on GPU", tone: "var(--good)" }
+      : gpuShare <= 0.001
+        ? { text: "All on CPU", tone: "var(--orange)" }
+        : gpuLed
+          ? { text: "Mostly GPU", tone: "var(--good)" }
+          : { text: "CPU slows it down", tone: "var(--orange)" };
+  const runnable = est.classification !== "cannot_fit" && est.classification !== "unknown";
+
   // Fit everything on one row: measure the space and scale all drawings by the same factor.
   const ref = useRef<HTMLDivElement>(null);
   const [avail, setAvail] = useState(0);
@@ -298,7 +329,7 @@ export function IsoViz({ est, machine }: { est: Estimate; machine: MachineProfil
             )}
             <div className="iso-col">
               <div className="iso-title">{c.title}</div>
-              <Container side={c.side} levels={c.levels} blocks={c.blocks} limitLevel={c.limitLevel} label={`${c.title}: ${c.sub}`} />
+              <Container side={c.side} levels={c.levels} blocks={c.blocks} limitLevel={c.limitLevel} label={`${c.title}: ${c.sub}`} lit={containerLit} />
               <div className="iso-sub">
                 {c.sub}
                 {c.overflow ? <div className="iso-over">+{fmtBytes(c.overflow)} doesn't fit</div> : null}
@@ -307,6 +338,19 @@ export function IsoViz({ est, machine }: { est: Estimate; machine: MachineProfil
           </Fragment>
         ))}
       </div>
+      {est.placement && runnable && (
+        <div className="work-row">
+          <span className="work-pill" style={{ ["--tone" as string]: status.tone }}>
+            <Zap size={14} /> {status.text}
+          </span>
+          {gpuShare > 0.001 && gpuShare < 0.999 && (
+            <div className="work-bars">
+              <WorkBar label="Data" gpu={gpuShare} />
+              {timeGpu != null && <WorkBar label="Time" gpu={timeGpu} />}
+            </div>
+          )}
+        </div>
+      )}
       <div className="legend iso-legend">
         <span>
           <i className="sw k-w" /> Weights
@@ -338,8 +382,26 @@ export function IsoViz({ est, machine }: { est: Estimate; machine: MachineProfil
             <i className="sw lit-sw" /> Active per word
           </span>
         )}
+        {[...containerLit.values()].includes("slow") && (
+          <span>
+            <i className="sw lit-slow-sw" /> Active, read from RAM
+          </span>
+        )}
         <span className="faint">1 block ≈ {fmtBytes(unit)} · planned placement, not measured</span>
       </div>
+    </div>
+  );
+}
+
+function WorkBar({ label, gpu }: { label: string; gpu: number }) {
+  const g = Math.round(gpu * 100);
+  return (
+    <div className="work-bar" data-tip={`${label} per word: ${g}% GPU · ${100 - g}% CPU`}>
+      <span className="work-label">{label}</span>
+      <span className="work-track">
+        <span className="work-gpu" style={{ width: `${g}%` }}>{g >= 18 ? `GPU ${g}%` : ""}</span>
+        <span className="work-cpu" style={{ width: `${100 - g}%` }}>{100 - g >= 18 ? `CPU ${100 - g}%` : ""}</span>
+      </span>
     </div>
   );
 }

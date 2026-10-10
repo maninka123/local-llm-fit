@@ -193,6 +193,8 @@ export interface SpeedGuess {
   gbPerToken: number;
   gpuBandwidthGBs: number | null;
   cpuShare: number;
+  /** Share of each word's time spent on the GPU part (mid estimate). */
+  gpuTimeShare: number;
 }
 
 /**
@@ -224,7 +226,9 @@ export function guessSpeed(
     const cpuTime = ((1 - f) * perToken) / (cpuBw[i] * 1e9);
     return 1 / (gpuTime + cpuTime + overhead);
   };
-  return { range: { low: at(0), mid: at(1), high: at(2) }, gbPerToken: perToken / 1e9, gpuBandwidthGBs: bw, cpuShare: 1 - f };
+  const gpuT = f > 0 && bw ? (f * perToken) / (bw * gpuEff[1] * 1e9) : 0;
+  const cpuT = ((1 - f) * perToken) / (cpuBw[1] * 1e9);
+  return { range: { low: at(0), mid: at(1), high: at(2) }, gbPerToken: perToken / 1e9, gpuBandwidthGBs: bw, cpuShare: 1 - f, gpuTimeShare: gpuT + cpuT > 0 ? gpuT / (gpuT + cpuT) : 0 };
 }
 
 // ------------------------------------------------------------------ helpers
