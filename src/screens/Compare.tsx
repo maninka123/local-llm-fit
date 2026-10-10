@@ -59,11 +59,11 @@ export function Compare() {
 
   const line = (label: string, cells: React.ReactNode[]) => (
     <div key={label} style={{ display: "grid", gridTemplateColumns: cols, gap: 12, padding: "10px 0", borderBottom: "1px solid var(--border)", alignItems: "start" }}>
-      <div className="faint" style={{ fontSize: 12.5, fontWeight: 650 }}>
+      <div className="faint" style={{ fontSize: 14, fontWeight: 650 }}>
         {label}
       </div>
       {cells.map((c, i) => (
-        <div key={i} style={{ fontSize: 13.5, minWidth: 0 }}>
+        <div key={i} style={{ fontSize: 15, minWidth: 0 }}>
           {c}
         </div>
       ))}
@@ -165,7 +165,7 @@ export function Compare() {
           {line("Max context", rows.map(({ m }) => <span key={m.id}>{m.contextMax.value ?? m.arch?.contextLength ? fmtTokens((m.contextMax.value ?? m.arch?.contextLength)!) : "Unknown"}</span>))}
           {line("Download", rows.map(({ m, e }) => <span key={m.id} className="num">{e.artifact?.downloadBytes ? fmtBytes(e.artifact.downloadBytes, "GB") : "—"}</span>))}
           {line("Last verified", rows.map(({ m }) => <span key={m.id}>{ageText(m.lastVerified)}</span>))}
-          {line("Why", rows.map(({ m, e }) => <span key={m.id} className="faint" style={{ fontSize: 12.5 }}>{CLASS_META[e.classification].title}: {e.summary}</span>))}
+          {line("Why", rows.map(({ m, e }) => <span key={m.id} className="faint" style={{ fontSize: 14 }}>{CLASS_META[e.classification].title}: {e.summary}</span>))}
         </div>
       </section>
     </div>

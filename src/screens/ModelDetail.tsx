@@ -135,7 +135,7 @@ function Detail({ m }: { m: ModelVariant }) {
                 </span>
               </p>
             ) : (
-              <p className="faint" style={{ marginTop: 10, fontSize: 13 }}>
+              <p className="faint" style={{ marginTop: 10, fontSize: 14.5 }}>
                 No speed measurement yet. Speed is shown as a qualitative estimate only — run a local test to measure real tokens per second.
               </p>
             )}
@@ -201,12 +201,12 @@ function Detail({ m }: { m: ModelVariant }) {
                 </tbody>
               </table>
               <div className="stack" style={{ marginTop: 12, gap: 6 }}>
-                <b style={{ fontSize: 13 }}>Classification at the uncertainty bounds</b>
-                <span className="faint" style={{ fontSize: 12.5 }}>
+                <b style={{ fontSize: 14.5 }}>Classification at the uncertainty bounds</b>
+                <span className="faint" style={{ fontSize: 14 }}>
                   Low: {CLASS_META[est.classAtLevels.low].title} · Mid: {CLASS_META[est.classAtLevels.mid].title} · High: {CLASS_META[est.classAtLevels.high].title}
                 </span>
-                <b style={{ fontSize: 13, marginTop: 6 }}>Assumptions</b>
-                <ul style={{ margin: 0, paddingLeft: 18, color: "var(--text-2)", fontSize: 13 }}>
+                <b style={{ fontSize: 14.5, marginTop: 6 }}>Assumptions</b>
+                <ul style={{ margin: 0, paddingLeft: 18, color: "var(--text-2)", fontSize: 14.5 }}>
                   {est.assumptions.map((a, i) => (
                     <li key={i}>{a}</li>
                   ))}
@@ -240,7 +240,7 @@ function Detail({ m }: { m: ModelVariant }) {
               <Fact label="KV cache / token" value={fmtKiB(est.kvPerToken)} prov={est.kvMethod === "metadata" ? "derived" : "heuristic"} />
             </div>
             <div className="divider" />
-            <div className="row" style={{ fontSize: 13 }}>
+            <div className="row" style={{ fontSize: 14.5 }}>
               <span className="faint">Sources:</span>
               {m.sourceUrls.map((u) => (
                 <a key={u} href={u} target="_blank" rel="noreferrer noopener">
@@ -250,7 +250,7 @@ function Detail({ m }: { m: ModelVariant }) {
               {m.seedSnapshotDate && <span className="faint">· seed snapshot {m.seedSnapshotDate}</span>}
             </div>
             {m.notes.length > 0 && (
-              <ul style={{ margin: "10px 0 0", paddingLeft: 18, fontSize: 12.5, color: "var(--text-3)" }}>
+              <ul style={{ margin: "10px 0 0", paddingLeft: 18, fontSize: 14, color: "var(--text-3)" }}>
                 {m.notes.map((n, i) => (
                   <li key={i}>{n}</li>
                 ))}
@@ -294,6 +294,20 @@ function Detail({ m }: { m: ModelVariant }) {
             <p className="field-hint" style={{ margin: "8px 0 0" }}>
               <span style={{ color: "var(--good)" }}>●</span> published file exists · <i>italic</i> = hypothetical. {quantInfo(quant).blurb}
             </p>
+
+            {machine.ramFree != null && (<><div className="divider" />
+            <div className="control-label">
+              <span>Memory to plan for</span>
+            </div>
+            <Seg
+              label="Memory to plan for"
+              value={settings.memoryBasis}
+              onChange={(v) => setSettings({ memoryBasis: v })}
+              options={[
+                { value: "live", label: "Free now" },
+                { value: "planning", label: "If I close apps" },
+              ]}
+            /></>)}
 
             <div className="divider" />
             <div className="control-label">
@@ -353,7 +367,7 @@ function Detail({ m }: { m: ModelVariant }) {
 
             <div className="divider" />
             <details>
-              <summary style={{ cursor: "pointer", fontWeight: 650, fontSize: 13 }}>Advanced</summary>
+              <summary style={{ cursor: "pointer", fontWeight: 650, fontSize: 14.5 }}>Advanced</summary>
               <div className="stack" style={{ marginTop: 12 }}>
                 <div className="control-label" style={{ margin: 0 }}>
                   <span>KV cache precision</span>
@@ -401,7 +415,7 @@ function Detail({ m }: { m: ModelVariant }) {
             </details>
           </section>
           <section className="card tight">
-            <div className="row" style={{ gap: 8, fontSize: 12.5 }}>
+            <div className="row" style={{ gap: 8, fontSize: 14 }}>
               <ShieldAlert size={15} color="var(--text-3)" />
               <span className="faint">
                 Estimates use {est.pools.mode === "live" ? "live free-memory readings" : "planning reserves"}. Settings here apply to every model; quantization is remembered per model.
@@ -418,11 +432,11 @@ function Detail({ m }: { m: ModelVariant }) {
 function Stat({ label, value, sub }: { label: string; value: React.ReactNode; sub?: string }) {
   return (
     <div>
-      <div className="eyebrow" style={{ fontSize: 10.5 }}>
+      <div className="eyebrow" style={{ fontSize: 12.5 }}>
         {label}
       </div>
-      <div style={{ fontSize: 20, fontWeight: 750, letterSpacing: "-0.01em" }}>{value}</div>
-      {sub && <div className="faint" style={{ fontSize: 11.5 }}>{sub}</div>}
+      <div style={{ fontSize: 22, fontWeight: 750, letterSpacing: "-0.01em" }}>{value}</div>
+      {sub && <div className="faint" style={{ fontSize: 13 }}>{sub}</div>}
     </div>
   );
 }
@@ -532,7 +546,7 @@ function SmokeTests({ m }: { m: ModelVariant }) {
   };
   return (
     <div className="row" style={{ marginTop: 14 }}>
-      <span className="faint" style={{ fontSize: 13 }}>Smoke tests (run locally, on request):</span>
+      <span className="faint" style={{ fontSize: 14.5 }}>Smoke tests (run locally, on request):</span>
       <button className="btn sm" disabled={busy} onClick={() => setConfirm("text")}>
         <FlaskConical size={14} /> Test text
       </button>
@@ -584,7 +598,7 @@ function MoeExplainer({ onClose, m, est }: { onClose: () => void; m: ModelVarian
           <p className="muted" style={{ margin: 0 }}>
             An MoE model has many "expert" sub-networks. For each word (token), a router picks a few experts to do the work. Four different ideas get mixed up a lot:
           </p>
-          <ol style={{ margin: 0, paddingLeft: 18, display: "grid", gap: 8, fontSize: 14 }}>
+          <ol style={{ margin: 0, paddingLeft: 18, display: "grid", gap: 8, fontSize: 15.5 }}>
             <li>
               <b>Total weights</b> — every expert must be stored somewhere. Here: <b>{est.weights ? fmtBytes(est.weights.mid) : "unknown"}</b>.
             </li>

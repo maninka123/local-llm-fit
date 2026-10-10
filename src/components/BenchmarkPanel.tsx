@@ -98,12 +98,12 @@ export function BenchmarkPanel({ m, est }: { m: ModelVariant; est: Estimate }) {
         </div>
       </div>
       {ol.status !== "online" && (
-        <p className="faint" style={{ fontSize: 13, margin: 0 }}>
+        <p className="faint" style={{ fontSize: 14.5, margin: 0 }}>
           Ollama is not running. Start Ollama to see installed models and run tests. Estimates above don't need it.
         </p>
       )}
       {ol.status === "online" && !name && (
-        <p className="faint" style={{ fontSize: 13, margin: 0 }}>
+        <p className="faint" style={{ fontSize: 14.5, margin: 0 }}>
           {m.resolvedTag ? (
             <>
               Not installed. Use Download (with confirmation) or run <span className="mono">ollama pull {m.resolvedTag}</span> yourself.
@@ -115,7 +115,7 @@ export function BenchmarkPanel({ m, est }: { m: ModelVariant; est: Estimate }) {
       )}
       {pull && (
         <div className="stack" style={{ marginTop: 10, gap: 6 }}>
-          <span className="faint" style={{ fontSize: 13 }}>
+          <span className="faint" style={{ fontSize: 14.5 }}>
             {pull.status} {pull.total ? `${fmtBytes(pull.done, "GB")} / ${fmtBytes(pull.total, "GB")}` : ""}
           </span>
           <div className="progress">
@@ -131,7 +131,7 @@ export function BenchmarkPanel({ m, est }: { m: ModelVariant; est: Estimate }) {
               We'll ask <span className="mono">{name}</span> to write about 160 tokens twice: a <b>cold</b> run (model unloaded first, so loading time is included) and a <b>warm</b> run. Settings: temperature 0, seed 42,{" "}
               {settings.contextTokens.toLocaleString()} context.
             </p>
-            <ul style={{ margin: 0, paddingLeft: 18, color: "var(--text-2)", fontSize: 13.5 }}>
+            <ul style={{ margin: 0, paddingLeft: 18, color: "var(--text-2)", fontSize: 15 }}>
               <li>Uses up to ≈ {fmtBytes(est.totalNeed?.mid ?? null)} of memory while it runs; close heavy apps for cleaner numbers.</li>
               <li>Nothing is downloaded. Nothing leaves your computer.</li>
               <li>Results are specific to this machine, driver, power mode and Ollama version.</li>
@@ -170,7 +170,7 @@ export function BenchmarkPanel({ m, est }: { m: ModelVariant; est: Estimate }) {
               </div>
               <div className="fact">
                 <div className="label">Predicted fit</div>
-                <div className="value" style={{ fontSize: 13 }}>{CLASS_META[est.classification].title}</div>
+                <div className="value" style={{ fontSize: 14.5 }}>{CLASS_META[est.classification].title}</div>
               </div>
             </div>
             {(est.classification === "cannot_fit" || est.classification === "memory_constrained") && (
@@ -219,7 +219,7 @@ export function ResultsTable({ rows, est }: { rows: BenchmarkRecord[]; est?: Est
             <tr key={b.id}>
               <td>
                 <b>{b.kind}</b>
-                <div className="faint" style={{ fontSize: 11.5 }}>
+                <div className="faint" style={{ fontSize: 13 }}>
                   {new Date(b.createdAt).toLocaleString()} · {b.quantLabel ?? ""} · {b.contextTokens / 1024}K
                 </div>
               </td>
@@ -234,14 +234,14 @@ export function ResultsTable({ rows, est }: { rows: BenchmarkRecord[]; est?: Est
               <td className="num">{delta(b.peakVramUsedBytes, b.baselineVramUsedBytes)}</td>
               <td>
                 {PLACEMENT[b.placement ?? "unknown"]}
-                {b.residentBytes ? <div className="faint" style={{ fontSize: 11.5 }}>{fmtBytes(b.residentVramBytes ?? 0)} of {fmtBytes(b.residentBytes)} in VRAM</div> : null}
+                {b.residentBytes ? <div className="faint" style={{ fontSize: 13 }}>{fmtBytes(b.residentVramBytes ?? 0)} of {fmtBytes(b.residentBytes)} in VRAM</div> : null}
               </td>
             </tr>
           ))}
         </tbody>
       </table>
       {est && rows[0] && (
-        <div className="row" style={{ marginTop: 10, fontSize: 13 }}>
+        <div className="row" style={{ marginTop: 10, fontSize: 14.5 }}>
           <Gauge size={15} />
           <span className="muted">
             Predicted: <b>{CLASS_META[est.classification].title}</b>, ≈ {fmtBytes(est.totalNeed?.mid ?? null)} total. Ollama reported: <b>{PLACEMENT[rows[0].placement ?? "unknown"]}</b>

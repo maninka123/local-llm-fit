@@ -95,7 +95,7 @@ export function ConfidenceMeter({ c }: { c: EstConfidence }) {
           <i key={i} className={i <= n ? "on" : ""} />
         ))}
       </span>
-      <span style={{ fontSize: 12.5, fontWeight: 650, color }}>{c[0].toUpperCase() + c.slice(1)} confidence</span>
+      <span style={{ fontSize: 14, fontWeight: 650, color }}>{c[0].toUpperCase() + c.slice(1)} confidence</span>
     </span>
   );
 }
@@ -113,7 +113,7 @@ const PROV_TEXT: Record<string, string> = {
 export function Prov({ p, title }: { p: Provenance | "heuristic" | "measured" | "setting" | undefined; title?: string }) {
   const k = p ?? "unknown";
   return (
-    <span className={`prov-${k}`} title={title} style={{ fontSize: 11.5, fontWeight: 650 }}>
+    <span className={`prov-${k}`} title={title} style={{ fontSize: 13, fontWeight: 650 }}>
       {PROV_TEXT[k] ?? k}
     </span>
   );
@@ -183,7 +183,7 @@ export function Modal({ title, onClose, children, wide, labelledBy }: { title: R
     <div className="scrim" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className={`modal ${wide ? "wide" : ""}`} role="dialog" aria-modal="true" aria-labelledby={id} ref={ref}>
         <div className="card-head" style={{ marginBottom: 16 }}>
-          <h2 id={id} style={{ fontSize: 20 }}>
+          <h2 id={id} style={{ fontSize: 22 }}>
             {title}
           </h2>
           <button className="btn ghost icon-btn" aria-label="Close" onClick={onClose}>
@@ -239,7 +239,7 @@ export function Empty({ icon, title, children }: { icon: ReactNode; title: strin
   return (
     <div className="empty">
       {icon}
-      <b style={{ color: "var(--text)", fontSize: 16 }}>{title}</b>
+      <b style={{ color: "var(--text)", fontSize: 17 }}>{title}</b>
       {children}
     </div>
   );

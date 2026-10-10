@@ -34,9 +34,14 @@ jobs:
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Signs update bundles so installed apps can verify them (key kept as a repo secret).
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
         with:
           tagName: ${{ github.ref_name }}
           releaseName: Model Fit Explorer ${{ github.ref_name }}
-          releaseBody: Desktop builds for Windows, macOS and Linux. Unsigned builds; see README for first-launch notes.
-          releaseDraft: true
+          releaseBody: Desktop builds for Windows, macOS and Linux. Installed apps update automatically. Installers are not code-signed; see README for first-launch notes.
+          # Published (not draft) so installed apps can find latest.json for auto-update.
+          releaseDraft: false
+          includeUpdaterJson: true
           args: ${{ matrix.args }}

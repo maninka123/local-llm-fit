@@ -191,6 +191,10 @@ export type MemoryArchitecture = "discrete" | "unified" | "integrated_shared" | 
 export interface HardwareReport {
   probeVersion: string;
   demo: boolean;
+  /** native = desktop probe; browser = browser signals + specs + user answers; demo = sample machine. */
+  mode?: "native" | "browser" | "demo";
+  /** Browser mode: has the user confirmed the suggested values? */
+  browserConfirmed?: boolean;
   detectedAt: string;
   os: { name: string; version: string; arch: string; kernel?: string };
   formFactor: Field<FormFactor>;

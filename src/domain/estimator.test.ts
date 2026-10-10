@@ -203,3 +203,45 @@ describe("KV cache formula", () => {
     expect(kv.kv.low).toBeLessThan(kv.kv.high / 3);
   });
 });
+
+describe("memory basis", () => {
+  it("'If I close other apps' plans against total memory instead of what is free now", () => {
+    const busyMac = unified(16, 5.5, 11.84); // real M3 16 GB with apps open
+    const m = model({ total: 8, dense: true, arch: ARCH_8B });
+    const now = estimate(m, settings({ memoryBasis: "live" }), busyMac);
+    const fresh = estimate(m, settings({ memoryBasis: "planning" }), busyMac);
+    expect(now.pools.ramUsable).toBeCloseTo(3.5 * GiB, -6);
+    expect(fresh.pools.ramUsable).toBeCloseTo(16 * 0.8 * GiB, -6);
+    expect(now.classification).toBe("memory_constrained");
+    expect(fresh.classification).toBe("full_gpu");
+  });
+});
+
+describe("recommendation ranking", () => {
+  it("groups the seven classes into four plain-language groups", async () => {
+    const { bucketOf, BUCKETS } = await import("./recommend");
+    expect(BUCKETS).toHaveLength(4);
+    expect(bucketOf("full_gpu")).toBe("runs_well");
+    expect(bucketOf("promising_moe")).toBe("runs_slower");
+    expect(bucketOf("memory_constrained")).toBe("tight");
+    expect(bucketOf("unknown")).toBe("wont_run");
+  });
+  it("prefers bigger, popular, newer, feature-rich models and explains why", async () => {
+    const { recommend } = await import("./recommend");
+    const mach = discrete(24, 23, 64, 50);
+    const small = model({ total: 3, dense: true });
+    const big = model({ total: 14, dense: true });
+    const es = estimate(small, settings(), mach);
+    const eb = estimate(big, settings(), mach);
+    const rs = recommend(small, es, { pulls: 2e5, newestRank: 200 });
+    const rb = recommend(big, eb, { pulls: 4e7, newestRank: 10 });
+    expect(rb.score).toBeGreaterThan(rs.score);
+    expect(rb.reasons).toEqual(expect.arrayContaining(["Larger model (14B)", "Popular (40M downloads)", "Recent release"]));
+  });
+  it("demotes embedding-only models unless the user asked for embeddings", async () => {
+    const { recommend } = await import("./recommend");
+    const emb = { ...model({ total: 0.5, dense: true }), useCases: ["embedding" as const] };
+    const e = estimate(emb, settings(), discrete(24, 23, 64, 50));
+    expect(recommend(emb, e, undefined).score).toBeLessThan(recommend(emb, e, undefined, { wantEmbeddings: true }).score);
+  });
+});

@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import { buildCatalog, type Snapshot } from "../catalog/buildCatalog";
+import { buildCatalog, type FamilyInfo, type Snapshot } from "../catalog/buildCatalog";
 import type { ImportReport } from "../catalog/seedImporter";
 import type { OllamaVerification } from "../catalog/ollamaOfficial";
 import type { InputSelection } from "../domain/capabilities";
@@ -9,12 +9,13 @@ import type { BenchmarkRecord, CapEvidence, HardwareOverrides, HardwareReport, I
 import { EMPTY_OVERRIDES } from "../domain/types";
 import { addEvidence } from "../domain/capabilities";
 import { DEMO_MACHINES } from "../platform/demoHardware";
+import { buildBrowserReport, detectBrowser, suggestSetup, type BrowserSetup, type BrowserSignals } from "../platform/browserDetect";
 import { isTauri, ollama, probeHardware } from "../platform/bridge";
 import { modelFromInstalled, type OllamaPsModel, type OllamaTagModel } from "../platform/ollamaLocal";
 import seedCsv from "../data/ollama_model_catalog_2026-10.csv?raw";
 
-export type Page = "overview" | "explore" | "model" | "compare" | "find" | "settings";
-export type Theme = "dark" | "light";
+export type Page = "overview" | "run" | "explore" | "model" | "compare" | "settings";
+export type Theme = "light" | "dark" | "system";
 export type MotionPref = "system" | "reduce" | "full";
 /** "AUTO" = the model's default published tag when known, otherwise Q4_K_M. */
 export type QuantChoice = QuantId | "AUTO";
@@ -48,6 +49,11 @@ interface Persisted {
   inputs: InputSelection;
   verifiedOnly: boolean;
   demoId: string;
+  /** Web only: estimate from this browser, or show a sample machine. */
+  webHardware: "browser" | "demo";
+  browserSetup: BrowserSetup | null;
+  /** Desktop: check GitHub Releases for signed updates on launch. */
+  autoUpdate: boolean;
 }
 
 interface State extends Persisted {
@@ -55,7 +61,11 @@ interface State extends Persisted {
   hardware: HardwareReport | null;
   hardwareStatus: "idle" | "probing" | "ready" | "error";
   hardwareError?: string;
+  browserSignals: BrowserSignals | null;
+  setupOpen: boolean;
+  tryOpen: boolean;
   catalog: Map<string, ModelVariant>;
+  families: Record<string, FamilyInfo>;
   importReport: ImportReport | null;
   snapshotDate: string | null;
   snapshotStats: { applied: number; added: number };
@@ -70,6 +80,11 @@ interface State extends Persisted {
   setModelQuant(id: string, q: QuantId): void;
   rescanHardware(): Promise<void>;
   setDemo(id: string): void;
+  useBrowserHardware(): void;
+  saveBrowserSetup(s: BrowserSetup): void;
+  setSetupOpen(v: boolean): void;
+  setTryOpen(v: boolean): void;
+  setAutoUpdate(v: boolean): void;
   rebuildCatalog(): Promise<void>;
   saveVerification(v: OllamaVerification): void;
   addUserModel(m: ModelVariant): void;
@@ -89,7 +104,8 @@ interface State extends Persisted {
 function routeFromHash(): Route {
   const h = typeof location !== "undefined" ? location.hash.replace(/^#\/?/, "") : "";
   const [page, ...rest] = h.split("/");
-  const valid: Page[] = ["overview", "explore", "model", "compare", "find", "settings"];
+  const valid: Page[] = ["overview", "run", "explore", "model", "compare", "settings"];
+  if (page === "find") return { page: "run" };
   if (page === "model" && rest.length) return { page: "model", modelId: decodeURIComponent(rest.join("/")) };
   if (valid.includes(page as Page)) return { page: page as Page };
   return { page: "overview" };
@@ -150,16 +166,23 @@ export const useStore = create<State>()(
       capabilityEvidence: {},
       benchmarks: [],
       compare: [],
-      theme: "dark",
+      theme: "system",
       motion: "system",
       inputs: { text: true },
       verifiedOnly: false,
       demoId: DEMO_MACHINES[0].id,
+      webHardware: "browser",
+      browserSetup: null,
+      autoUpdate: true,
 
       route: routeFromHash(),
+      browserSignals: null,
+      setupOpen: false,
+      tryOpen: false,
       hardware: null,
       hardwareStatus: "idle",
       catalog: new Map(),
+      families: {},
       importReport: null,
       snapshotDate: null,
       snapshotStats: { applied: 0, added: 0 },
@@ -182,8 +205,14 @@ export const useStore = create<State>()(
         set({ hardwareStatus: "probing", hardwareError: undefined });
         try {
           if (!isTauri()) {
-            const demo = DEMO_MACHINES.find((d) => d.id === get().demoId) ?? DEMO_MACHINES[0];
-            set({ hardware: { ...demo.report, detectedAt: new Date().toISOString() }, hardwareStatus: "ready" });
+            if (get().webHardware === "demo") {
+              const demo = DEMO_MACHINES.find((d) => d.id === get().demoId) ?? DEMO_MACHINES[0];
+              set({ hardware: { ...demo.report, mode: "demo", detectedAt: new Date().toISOString() }, hardwareStatus: "ready" });
+              return;
+            }
+            const sig = await detectBrowser();
+            const setup = get().browserSetup ?? suggestSetup(sig);
+            set({ browserSignals: sig, hardware: buildBrowserReport(sig, setup), hardwareStatus: "ready" });
             return;
           }
           const r = await probeHardware();
@@ -193,16 +222,27 @@ export const useStore = create<State>()(
         }
       },
       setDemo(id) {
-        set({ demoId: id, overrides: EMPTY_OVERRIDES });
+        set({ demoId: id, webHardware: "demo", overrides: EMPTY_OVERRIDES });
         void get().rescanHardware();
       },
+      useBrowserHardware() {
+        set({ webHardware: "browser", overrides: EMPTY_OVERRIDES });
+        void get().rescanHardware();
+      },
+      saveBrowserSetup(s) {
+        set({ browserSetup: s, webHardware: "browser", setupOpen: false, overrides: EMPTY_OVERRIDES });
+        void get().rescanHardware();
+      },
+      setSetupOpen: (v) => set({ setupOpen: v }),
+      setTryOpen: (v) => set({ tryOpen: v }),
+      setAutoUpdate: (v) => set({ autoUpdate: v }),
 
       async rebuildCatalog() {
         const s = get();
         const snap = await loadSnapshot();
         const b = buildCatalog(seedCsv, snap, s.liveVerifications, s.userModels);
         applyLocal(b.models, s, showDetails);
-        set({ catalog: b.models, importReport: b.report, snapshotDate: b.snapshotDate, snapshotStats: { applied: b.snapshotApplied, added: b.snapshotAdded } });
+        set({ catalog: b.models, families: b.families, importReport: b.report, snapshotDate: b.snapshotDate, snapshotStats: { applied: b.snapshotApplied, added: b.snapshotAdded } });
       },
       saveVerification(v) {
         const id = `${v.family}:${v.variant}`.toLowerCase();
@@ -270,7 +310,13 @@ export const useStore = create<State>()(
     }),
     {
       name: "model-fit-explorer",
-      version: 1,
+      version: 2,
+      // v2: theme became user-selectable (light/dark/system); earlier builds defaulted to dark.
+      migrate: (persisted, version) => {
+        const p = (persisted ?? {}) as Partial<Persisted>;
+        if (version < 2) p.theme = "system";
+        return p as Persisted;
+      },
       storage: safeStorage,
       partialize: (s): Persisted => ({
         overrides: s.overrides,
@@ -287,6 +333,9 @@ export const useStore = create<State>()(
         inputs: s.inputs,
         verifiedOnly: s.verifiedOnly,
         demoId: s.demoId,
+        webHardware: s.webHardware,
+        browserSetup: s.browserSetup,
+        autoUpdate: s.autoUpdate,
       }),
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<Persisted>;

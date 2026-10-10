@@ -59,8 +59,8 @@ export interface ConfigInfo {
   file_type?: string; // e.g. "Q4_K_M"
 }
 
-export async function fetchLibraryIndex(): Promise<LibraryEntry[]> {
-  return parseLibraryIndex(await httpText("https://ollama.com/library"));
+export async function fetchLibraryIndex(sort?: "newest" | "popular"): Promise<LibraryEntry[]> {
+  return parseLibraryIndex(await httpText(`https://ollama.com/library${sort ? `?sort=${sort}` : ""}`));
 }
 
 export async function searchOllama(q: string): Promise<LibraryEntry[]> {

@@ -16,6 +16,14 @@ export interface LibraryEntry {
   updated?: string;
 }
 
+/** "41M" → 41_000_000; "850K" → 850_000. */
+export function parsePulls(s: string | undefined): number | null {
+  const m = /^([\d.]+)\s*([KMB])?$/i.exec((s ?? "").trim());
+  if (!m) return null;
+  const mult = { K: 1e3, M: 1e6, B: 1e9 }[(m[2] ?? "").toUpperCase() as "K" | "M" | "B"] ?? 1;
+  return Math.round(parseFloat(m[1]) * mult);
+}
+
 export function parseLibraryIndex(html: string): LibraryEntry[] {
   const out: LibraryEntry[] = [];
   const parts = html.split(/<li\s[^>]*>/).slice(1);

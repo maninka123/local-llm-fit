@@ -1,25 +1,30 @@
 import { useMemo } from "react";
-import { ArrowRight, Cpu, Sparkles, Zap } from "lucide-react";
+import { Cpu, Search, Sparkles, Zap } from "lucide-react";
 import { useStore } from "../state/store";
 import { quantFor, useMachine } from "../state/derived";
 import { acceptsInputs } from "../domain/capabilities";
-import { CLASS_META, DEFAULT_SETTINGS, estimate, RESPONSIVENESS_TEXT, type Estimate, type FitClass, type MachineProfile } from "../domain/estimator";
+import { DEFAULT_SETTINGS, estimate, RESPONSIVENESS_TEXT, type Estimate, type MachineProfile } from "../domain/estimator";
 import { quantInfo } from "../domain/quant";
 import type { ModelVariant } from "../domain/types";
 import { fmtBytes, fmtParams, GiB } from "../lib/units";
-import { FitPill, TONE_VAR, Avatar, Switch, AnimatedBytes } from "../components/ui";
+import { FitPill, Avatar, Switch, AnimatedBytes, Seg } from "../components/ui";
 import { InputPicker, CapabilityStrip } from "../components/Capabilities";
 import { FORM_LABEL, FormIcon } from "../components/MachineBar";
 import { useExplorer } from "./Explorer";
+import { BUCKETS, bucketOf, recommend, type Bucket, type Recommendation } from "../domain/recommend";
+import { MachineSetupCard } from "../components/MachineSetup";
 
-const ORDER: FitClass[] = ["full_gpu", "promising_moe", "cpu_only", "hybrid_slow", "memory_constrained", "cannot_fit", "unknown"];
 
-function Spec({ label, value, sub, manual }: { label: string; value: React.ReactNode; sub?: React.ReactNode; manual?: boolean }) {
+function Spec({ label, value, sub, manual, tip }: { label: string; value: React.ReactNode; sub?: React.ReactNode; manual?: boolean; tip?: string }) {
+  const mode = useStore((s) => s.hardware?.mode);
+  const srcLabel = mode === "browser" ? "Browser / you" : mode === "demo" ? "Sample" : "Detected";
   return (
     <div className="spec">
       <div className="label">
         {label}
-        <span className={`src-tag ${manual ? "manual" : ""}`}>{manual ? "Manually entered" : "Detected"}</span>
+        <span className={`src-tag ${manual ? "manual" : ""}`} data-tip={tip} tabIndex={tip ? 0 : undefined}>
+          {manual ? "Manually entered" : srcLabel}
+        </span>
       </div>
       <div className="value">{value}</div>
       {sub && <div className="sub">{sub}</div>}
@@ -35,7 +40,7 @@ function Tank({ title, total, free, usable, limit, note }: { title: string; tota
     <div className="tank">
       <div className="tank-head">
         <b>{title}</b>
-        <span className="muted num" style={{ fontSize: 13 }}>
+        <span className="muted num" style={{ fontSize: 14.5 }}>
           {free != null ? (
             <>
               <AnimatedBytes bytes={free} /> free of {fmtBytes(total)}
@@ -58,7 +63,7 @@ function Tank({ title, total, free, usable, limit, note }: { title: string; tota
         )}
         {limit != null && t > 0 && <div className="limit-mark" style={{ left: pct(limit), top: -4, bottom: -4 }} title={`GPU working-set limit ${fmtBytes(limit)}`} />}
       </div>
-      <div className="faint" style={{ fontSize: 12 }}>
+      <div className="faint" style={{ fontSize: 13.5 }}>
         {note}
       </div>
     </div>
@@ -76,11 +81,12 @@ function comfortableSize(m: MachineProfile, est0: Estimate | null): string {
   return `≈ ${b >= 10 ? Math.floor(b) : b.toFixed(1)}B parameters`;
 }
 
-export function Overview() {
+export function RunPage() {
   const hw = useStore((s) => s.hardware);
   const o = useStore((s) => s.overrides);
   const catalog = useStore((s) => s.catalog);
   const settings = useStore((s) => s.settings);
+  const setSettings = useStore((s) => s.setSettings);
   const choice = useStore((s) => s.quantChoice);
   const per = useStore((s) => s.perModelQuant);
   const inputs = useStore((s) => s.inputs);
@@ -88,38 +94,40 @@ export function Overview() {
   const verifiedOnly = useStore((s) => s.verifiedOnly);
   const setVerifiedOnly = useStore((s) => s.setVerifiedOnly);
   const navigate = useStore((s) => s.navigate);
-  const ol = useStore((s) => s.ollamaState);
+  const families = useStore((s) => s.families);
   const machine = useMachine();
 
   const results = useMemo(() => {
     if (!machine) return [];
-    const out: { m: ModelVariant; e: Estimate }[] = [];
+    const out: { m: ModelVariant; e: Estimate; r: Recommendation }[] = [];
     for (const m of catalog.values()) {
       if (m.cloudOnly) continue;
       if (!acceptsInputs(m.capabilities, inputs, verifiedOnly)) continue;
       if (verifiedOnly && !m.lastVerified) continue;
       if (m.useCases.includes("embedding") || m.useCases.includes("safety")) continue;
-      out.push({ m, e: estimate(m, { ...settings, quant: quantFor(m, choice, per) }, machine) });
+      const e = estimate(m, { ...settings, quant: quantFor(m, choice, per) }, machine);
+      out.push({ m, e, r: recommend(m, e, families[m.family]) });
     }
     return out;
-  }, [catalog, machine, settings, choice, per, inputs, verifiedOnly]);
+  }, [catalog, machine, settings, choice, per, inputs, verifiedOnly, families]);
 
   const counts = useMemo(() => {
-    const c = Object.fromEntries(ORDER.map((k) => [k, 0])) as Record<FitClass, number>;
-    for (const r of results) c[r.e.classification]++;
+    const c = Object.fromEntries(BUCKETS.map((b) => [b.id, 0])) as Record<Bucket, number>;
+    for (const r of results) c[bucketOf(r.e.classification)]++;
     return c;
   }, [results]);
 
   const picks = useMemo(() => {
-    const pick = (cls: FitClass[], n: number, allowLow = false) => {
+    // Best-ranked model per family in each group (so one family doesn't fill the list).
+    const pick = (b: Bucket, n: number) => {
       const seen = new Set<string>();
       return results
-        .filter((r) => cls.includes(r.e.classification) && (allowLow || r.e.confidence !== "low") && r.m.totalParamsB.value)
-        .sort((a, b) => (b.m.lastVerified ? 1 : 0) - (a.m.lastVerified ? 1 : 0) || (b.m.totalParamsB.value ?? 0) - (a.m.totalParamsB.value ?? 0))
+        .filter((r) => bucketOf(r.e.classification) === b)
+        .sort((a, c) => c.r.score - a.r.score)
         .filter((r) => (seen.has(r.m.family) ? false : (seen.add(r.m.family), true)))
         .slice(0, n);
     };
-    return { fast: pick(["full_gpu"], 6), moe: pick(["promising_moe"], 3, true), cpu: pick(["cpu_only", "hybrid_slow"], 3) };
+    return { well: pick("runs_well", 5), slower: pick("runs_slower", 5), tight: pick("tight", 5) };
   }, [results]);
 
   if (!hw || !machine) return <div className="card" style={{ marginTop: 24 }}>Detecting hardware…</div>;
@@ -140,15 +148,27 @@ export function Overview() {
     <div className="grid" style={{ gap: 18 }}>
       <div className="page-head">
         <div>
-          <div className="eyebrow">Your Machine</div>
+          <div className="eyebrow">What can I run</div>
           <h1>What can this computer run?</h1>
           <p>We read your hardware and estimate which local AI models fit, where they would live in memory, and how responsive they are likely to be.</p>
         </div>
-        <button className="btn primary" onClick={() => navigate({ page: "explore" })}>
-          Explore all models <ArrowRight size={16} />
+        <button className="btn primary" onClick={() => useStore.getState().setTryOpen(true)}>
+          <Search size={16} /> Try a specific model
         </button>
       </div>
 
+      {hw.mode === "browser" && !hw.browserConfirmed && <MachineSetupCard />}
+      {hw.mode === "demo" && (
+        <div className="warning" style={{ alignItems: "center" }}>
+          <span>
+            You're viewing a <b>sample machine</b>. Estimates below are for that computer, not yours.
+          </span>
+          <span className="spacer" />
+          <button className="btn sm primary" onClick={() => useStore.getState().useBrowserHardware()}>
+            Use my computer
+          </button>
+        </div>
+      )}
       <section className="card hero" aria-labelledby="hero-title">
         <div className="row" style={{ gap: 14, alignItems: "flex-start" }}>
           <div className="avatar lg" style={{ background: "linear-gradient(135deg, var(--accent), var(--accent-2))" }} aria-hidden>
@@ -158,41 +178,46 @@ export function Overview() {
             <div className="hero-title" id="hero-title">
               {modelName ?? (ff ? FORM_LABEL[ff] : "Computer")} · {hw.cpu.brand}
             </div>
-            <div className="muted" style={{ fontSize: 13.5 }}>
+            <div className="muted" style={{ fontSize: 15 }}>
               {hw.os.name} {hw.os.version} · detected {new Date(hw.detectedAt).toLocaleString()} ·{" "}
-              {est0?.pools.mode === "live" ? "using live free-memory readings" : "planning mode (no live readings)"}
-              {hw.demo && <span className="badge demo" style={{ marginLeft: 8 }}>Demo hardware</span>}
+              {hw.mode === "browser" ? "estimated in your browser (exact readings need the desktop app)" : est0?.pools.mode === "live" ? "using live free-memory readings" : "planning mode (no live readings)"}
+              {hw.mode === "demo" && <span className="badge demo" style={{ marginLeft: 8 }}>Sample machine</span>}
+              {hw.mode === "browser" && (
+                <button className="badge demo" style={{ marginLeft: 8, cursor: "pointer" }} onClick={() => useStore.getState().setSetupOpen(true)}>
+                  Browser estimate · edit
+                </button>
+              )}
             </div>
           </div>
         </div>
-        <div className="spec-grid">
-          <Spec label="Operating system" value={hw.os.name} sub={`${hw.os.version} · ${hw.os.arch}`} />
+        <div className="spec-grid four">
           <Spec
-            label="Hardware class"
+            label="Type"
             manual={!!o.formFactor}
-            value={ff && ff !== "unknown" ? (hw.formFactor.confidence === "low" && !o.formFactor ? `Likely ${FORM_LABEL[ff].toLowerCase()}` : FORM_LABEL[ff]) : "Unknown"}
-            sub={hw.formFactorEvidence.join(" · ") || hw.formFactor.error}
+            value={ff && ff !== "unknown" ? (hw.formFactor.confidence === "low" && !o.formFactor ? `Likely ${FORM_LABEL[ff].toLowerCase()}` : FORM_LABEL[ff]) : "Computer"}
+            sub={`${hw.os.name} ${hw.os.version}`.trim()}
+            tip={hw.formFactorEvidence.join(" · ") || hw.formFactor.error}
           />
-          <Spec label="CPU" value={hw.cpu.brand} sub={`${hw.cpu.physicalCores ?? "?"} physical · ${hw.cpu.logicalCores ?? "?"} logical cores`} />
+          <Spec label="Processor" value={hw.cpu.brand} sub={hw.cpu.logicalCores ? `${hw.cpu.physicalCores ? `${hw.cpu.physicalCores} cores · ` : ""}${hw.cpu.logicalCores} threads` : undefined} />
           <Spec
-            label="GPU"
-            manual={o.vramTotalGiB != null}
-            value={hw.gpus.length ? (gpu?.name ?? hw.gpus.map((g) => g.name).join(", ")) : "No GPU detected"}
-            sub={hw.gpus.length > 1 ? `${hw.gpus.length} adapters: ${hw.gpus.map((g) => g.name).join(", ")}` : hw.gpus[0]?.vendor}
+            label="Graphics"
+            manual={o.vramTotalGiB != null || o.unifiedGpuLimitGiB != null}
+            value={machine.arch === "unified" ? (gpu?.name ?? hw.gpus[0]?.name ?? "Apple GPU") : gpu ? `${gpu.name}` : machine.arch === "integrated_shared" ? "Integrated graphics" : "No graphics card"}
+            sub={
+              machine.arch === "unified"
+                ? `Shares memory · GPU can use up to ${fmtBytes(machine.unifiedGpuLimit)}`
+                : gpu
+                  ? `${fmtBytes(gpu.vramTotal)} VRAM${gpu.vramFree != null ? ` · ${fmtBytes(gpu.vramFree)} free` : ""}`
+                  : "Models run on the CPU"
+            }
+            tip={hw.gpus.length > 1 ? `${hw.gpus.length} adapters: ${hw.gpus.map((g) => g.name).join(", ")}` : undefined}
           />
-          {machine.arch === "unified" ? (
-            <Spec label="GPU memory" value="Unified (no separate VRAM)" manual={o.unifiedGpuLimitGiB != null} sub={`GPU working-set limit: ${fmtBytes(machine.unifiedGpuLimit)} (${machine.unifiedGpuLimitSource})`} />
-          ) : (
-            <Spec
-              label="Dedicated VRAM"
-              manual={o.vramTotalGiB != null || o.vramFreeGiB != null}
-              value={gpu ? fmtBytes(gpu.vramTotal) : "None"}
-              sub={gpu ? (gpu.vramFree != null ? `${fmtBytes(gpu.vramFree)} free now` : "Free VRAM not reported") : machine.arch === "integrated_shared" ? "Integrated GPU uses system RAM" : undefined}
-            />
-          )}
-          <Spec label="Memory (RAM)" manual={o.ramTotalGiB != null || o.ramFreeGiB != null} value={fmtBytes(machine.ramTotal)} sub={machine.ramFree != null ? `${fmtBytes(machine.ramFree)} available now` : "Available not measured"} />
-          <Spec label="Memory architecture" manual={!!o.memoryArchitecture} value={archText[machine.arch]} sub={hw.memoryArchitecture.source} />
-          <Spec label="Ollama" value={ol.status === "online" ? `Running · v${ol.version}` : ol.status === "checking" ? "Checking…" : "Not detected"} sub={ol.status === "online" ? `${ol.installed.length} model(s) installed` : "Optional: estimates work without it"} />
+          <Spec
+            label="Memory"
+            manual={o.ramTotalGiB != null || o.ramFreeGiB != null}
+            value={`${fmtBytes(machine.ramTotal)}${machine.arch === "unified" ? " unified" : " RAM"}`}
+            sub={machine.ramFree != null ? `${fmtBytes(machine.ramFree)} free right now` : "Free memory not measured"}
+          />
         </div>
         {hw.errors.length > 0 && (
           <div className="warning warn" style={{ marginTop: 14 }}>
@@ -259,7 +284,7 @@ export function Overview() {
                 <b>{fmtBytes(machine.ramTotal)} unified memory</b>
                 <span>Both read the same memory: no copying, no double counting</span>
               </div>
-              <p className="muted" style={{ margin: 0, fontSize: 13.5 }}>
+              <p className="muted" style={{ margin: 0, fontSize: 15 }}>
                 A model fits well when it stays under the GPU's working-set limit. Beyond that, some layers run on the CPU: same memory, slower math.
               </p>
             </div>
@@ -278,13 +303,13 @@ export function Overview() {
                   <span>{fmtBytes(gpu?.vramTotal ?? null)}</span>
                 </div>
               </div>
-              <p className="muted" style={{ margin: 0, fontSize: 13.5 }}>
+              <p className="muted" style={{ margin: 0, fontSize: 15 }}>
                 Fastest when the whole model fits in VRAM. If not, layers spill into system RAM and run on the CPU, which usually slows replies a lot.
                 Mixture-of-Experts models suffer less because only a few experts work on each word.
               </p>
             </div>
           ) : (
-            <p className="muted" style={{ fontSize: 13.5 }}>
+            <p className="muted" style={{ fontSize: 15 }}>
               Models run on the CPU from system RAM. Small models (1–8B at Q4) are usually pleasant; larger ones will be slow. GPU acceleration on integrated graphics
               is not assumed.
             </p>
@@ -302,47 +327,81 @@ export function Overview() {
             </p>
           </div>
           <div className="row">
+            {machine.ramFree != null && <Seg
+              label="Memory to plan for"
+              value={settings.memoryBasis}
+              onChange={(v) => setSettings({ memoryBasis: v })}
+              options={[
+                { value: "live", label: "Free memory now", title: "Use memory that is free right now" },
+                { value: "planning", label: "If I close other apps", title: "Plan against total memory, keeping a reserve for the OS" },
+              ]}
+            />}
             <InputPicker value={inputs} onChange={setInputs} />
             <Switch checked={verifiedOnly} onChange={setVerifiedOnly} label="Only verified" />
           </div>
         </div>
+        {settings.memoryBasis === "live" && est0 && est0.pools.ramFree != null && machine.ramTotal != null && est0.pools.ramFree < machine.ramTotal * 0.5 && (
+          <div className="warning warn" style={{ marginBottom: 12 }}>
+            <span>
+              Only <b>{fmtBytes(est0.pools.ramFree)}</b> of {fmtBytes(machine.ramTotal)} is free right now because other apps are using memory. Switch to{" "}
+              <button className="btn sm" onClick={() => setSettings({ memoryBasis: "planning" })}>
+                If I close other apps
+              </button>{" "}
+              to see what fits on a fresh start.
+            </span>
+          </div>
+        )}
         <div className="tank-bar" style={{ height: 16, borderRadius: 99 }} role="img" aria-label="Distribution of fit results">
-          {ORDER.filter((k) => counts[k] > 0).map((k) => (
-            <div key={k} className="tank-fill" style={{ width: `${(counts[k] / total) * 100}%`, background: TONE_VAR[k] }} title={`${CLASS_META[k].title}: ${counts[k]}`} />
+          {BUCKETS.filter((b) => counts[b.id] > 0).map((b) => (
+            <div key={b.id} className="tank-fill" style={{ width: `${(counts[b.id] / total) * 100}%`, background: b.tone }} title={`${b.title}: ${counts[b.id]}`} />
           ))}
         </div>
-        <div className="legend" style={{ marginTop: 10 }}>
-          {ORDER.map((k) => (
-            <button key={k} className="fchip" onClick={() => { useExplorer.getState().set({ fits: [k] }); navigate({ page: "explore" }); }} style={{ height: 26 }} title={`See ${CLASS_META[k].title} models`}>
-              <span className="lamp" style={{ background: TONE_VAR[k] }} />
-              {CLASS_META[k].title} <b className="num">{counts[k]}</b>
+        <div className="legend" style={{ marginTop: 12 }}>
+          {BUCKETS.filter((b) => counts[b.id] > 0).map((b) => (
+            <button
+              key={b.id}
+              className="fchip"
+              data-tip={b.blurb}
+              onClick={() => {
+                useExplorer.getState().set({ buckets: [b.id] });
+                navigate({ page: "explore" });
+              }}
+            >
+              <span className="lamp" style={{ background: b.tone }} />
+              {b.title} <b className="num">{counts[b.id]}</b>
             </button>
           ))}
         </div>
         <div className="divider" />
         <div className="grid cols-3">
-          <PickList title="Fits in GPU — likely fast" items={picks.fast} empty="Nothing fits entirely in GPU memory at these settings." />
-          <PickList title="Mixture-of-Experts worth testing" items={picks.moe} empty="No MoE models in the promising range." note="Lower confidence by design: real speed depends on expert placement." />
-          <PickList title="Runs, but slower (CPU / offload)" items={picks.cpu} empty="—" />
+          <PickList title="Runs well · best picks" items={picks.well} empty="Nothing fits entirely in GPU memory at these settings." />
+          <PickList title="Runs, but slower · best picks" items={picks.slower} empty="Nothing in this group." note="Part runs on the CPU. MoE models usually cope best." />
+          <PickList title="Tight fit · best picks" items={picks.tight} empty="Nothing in this group." note="Fits only if you close other apps." />
         </div>
+        <p className="faint" style={{ fontSize: 13.5, margin: "14px 0 0" }}>
+          Ranked by size, popularity on ollama.com, how recent the model is, features (tools, thinking, vision) and how comfortably it fits: not a quality benchmark.
+        </p>
       </section>
     </div>
   );
 }
 
-function PickList({ title, items, empty, note }: { title: string; items: { m: ModelVariant; e: Estimate }[]; empty: string; note?: string }) {
+function PickList({ title, items, empty, note }: { title: string; items: { m: ModelVariant; e: Estimate; r: Recommendation }[]; empty: string; note?: string }) {
   const navigate = useStore((s) => s.navigate);
   return (
     <div className="stack" style={{ gap: 8 }}>
       <div className="eyebrow">{title}</div>
-      {note && items.length > 0 && <div className="faint" style={{ fontSize: 12, marginTop: -4 }}>{note}</div>}
-      {items.length === 0 && <div className="faint" style={{ fontSize: 13 }}>{empty}</div>}
-      {items.map(({ m, e }) => (
+      {note && items.length > 0 && <div className="faint" style={{ fontSize: 13.5, marginTop: -4 }}>{note}</div>}
+      {items.length === 0 && <div className="faint" style={{ fontSize: 14.5 }}>{empty}</div>}
+      {items.map(({ m, e, r }, i) => (
         <button key={m.id} className="mcard" style={{ padding: 12, gap: 8 }} onClick={() => navigate({ page: "model", modelId: m.id })}>
           <div className="mcard-top">
             <Avatar name={m.family} developer={m.developer} />
             <div style={{ minWidth: 0, flex: 1 }}>
-              <div className="mname">{m.displayName}</div>
+              <div className="mname">
+                <span className="faint num" style={{ marginRight: 6 }}>{i + 1}.</span>
+                {m.displayName}
+              </div>
               <div className="mdev">
                 {fmtParams(m.totalParamsB.value)}
                 {m.activeParamsB.value ? ` · ${fmtParams(m.activeParamsB.value)} active` : ""} · {e.weights ? fmtBytes(e.weights.mid, "GB") : "size ?"} · {RESPONSIVENESS_TEXT[e.responsiveness]}
@@ -351,6 +410,7 @@ function PickList({ title, items, empty, note }: { title: string; items: { m: Mo
             <FitPill cls={e.classification} short />
           </div>
           <CapabilityStrip caps={m.capabilities} />
+          {r.reasons.length > 0 && <div className="why-line">{r.reasons.slice(0, 3).join(" · ")}</div>}
         </button>
       ))}
     </div>

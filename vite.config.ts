@@ -30,6 +30,8 @@ export default defineConfig({
   server: { port: 5173, strictPort: true, proxy: metadataProxy },
   preview: { port: 4173, strictPort: true, proxy: metadataProxy },
   envPrefix: ["VITE_", "TAURI_ENV_"],
+  // Pre-bundle lazily imported desktop modules so the dev server never reloads mid-session.
+  optimizeDeps: { include: ["@tauri-apps/api/core", "@tauri-apps/api/app", "@tauri-apps/plugin-updater", "@tauri-apps/plugin-process", "zustand", "zustand/middleware", "lucide-react"] },
   build: { target: "es2022", sourcemap: false, chunkSizeWarningLimit: 1600 },
   test: {
     environment: "node",

@@ -1,7 +1,13 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Minimal permissions: core defaults only. App commands are limited to the fixed set registered in lib.rs.",
-  "windows": ["main"],
-  "permissions": ["core:default"]
+  "description": "Minimal permissions: core defaults, checking/installing signed updates, and restarting after an update.",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+    "updater:default",
+    "process:allow-restart"
+  ]
 }

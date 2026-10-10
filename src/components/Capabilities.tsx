@@ -29,21 +29,22 @@ export function StatusIcon({ s }: { s: CapStatus }) {
 /** Compact strip for model cards: inputs + key outputs, styled by evidence strength. */
 export function CapabilityStrip({ caps }: { caps: Capabilities }) {
   const label = modalityLabel(caps);
-  const items: { key: string; label: string; icon: ReactNode; s: CapStatus }[] = [
+  const items: { key: string; label: string; short?: string; icon: ReactNode; s: CapStatus }[] = [
     ...(["text", "image", "audio", "video"] as InputCap[]).map((k) => ({ key: `in-${k}`, label: `${IN_META[k].label} input`, icon: IN_META[k].icon, s: resolveInput(caps, k).status })),
-    { key: "out-emb", label: "Embeddings", icon: OUT_META.embeddings.icon, s: resolveOutput(caps, "embeddings").status },
-    { key: "out-tools", label: "Tool calls", icon: OUT_META.tools.icon, s: resolveOutput(caps, "tools").status },
-    { key: "thinking", label: "Thinking", icon: <Brain size={14} />, s: resolveCap(caps.thinking).status },
+    { key: "out-emb", label: "Produces embeddings (for search), not chat", short: "Embeddings", icon: OUT_META.embeddings.icon, s: resolveOutput(caps, "embeddings").status },
+    { key: "out-tools", label: "Tool calling: can call functions/tools an app provides", short: "Tools", icon: OUT_META.tools.icon, s: resolveOutput(caps, "tools").status },
+    { key: "thinking", label: "Thinking mode: can reason step by step before answering", short: "Thinking", icon: <Brain size={14} />, s: resolveCap(caps.thinking).status },
   ].filter((i) => !(i.key.startsWith("out") || i.key === "thinking") || i.s !== "unknown");
   return (
     <div className="caps" aria-label={`Capabilities: ${label.label}${label.verified ? "" : " (not fully verified)"}`}>
-      <span className="badge" style={{ marginRight: 4 }} title={label.verified ? "Verified for this exact tag" : "Not fully verified for this exact tag"}>
+      <span className="badge" style={{ marginRight: 4 }} data-tip={label.verified ? "Verified for this exact tag" : "* Not fully verified for this exact tag"} tabIndex={0}>
         {label.label}
         {!label.verified && label.label !== "Unknown" && <span style={{ color: "var(--warn)" }}>*</span>}
       </span>
       {items.map((i) => (
-        <span key={i.key} className={`cap s-${i.s}`} title={`${i.label}: ${STATUS_TEXT[i.s]}`}>
+        <span key={i.key} className={`cap s-${i.s}`} data-tip={`${i.label} · ${STATUS_TEXT[i.s]}`} tabIndex={0} aria-label={`${i.label}: ${STATUS_TEXT[i.s]}`}>
           {i.icon}
+          {i.short && <span className="cap-text">{i.short}</span>}
         </span>
       ))}
     </div>
@@ -94,7 +95,7 @@ function Row({ name, icon, rec }: { name: string; icon: ReactNode; rec: ReturnTy
         </span>
         {rec.runtimeModelMismatch && <div className="field-hint" style={{ color: "var(--warn)" }}>Model card and Ollama runtime disagree</div>}
       </td>
-      <td className="faint" style={{ fontSize: 12 }}>
+      <td className="faint" style={{ fontSize: 13.5 }}>
         {rec.evidence.length === 0 ? (
           "No evidence"
         ) : (
@@ -123,7 +124,7 @@ export function CapabilityPanel({ caps }: { caps: Capabilities }) {
   return (
     <div className="stack">
       <div className="row">
-        <span className="badge" style={{ fontSize: 13 }}>
+        <span className="badge" style={{ fontSize: 14.5 }}>
           {label.label}
         </span>
         <span className={label.verified ? "badge verified" : "badge estimated"}>{label.verified ? "Verified for this tag" : "Not fully verified"}</span>
@@ -172,7 +173,6 @@ const PICKER: { k: InputCap; label: string; icon: ReactNode; hint: string }[] = 
   { k: "image", label: "Images", icon: <Image size={16} />, hint: "Photos, screenshots, charts" },
   { k: "audio", label: "Audio", icon: <AudioLines size={16} />, hint: "Speech or sound input" },
   { k: "video", label: "Video", icon: <Video size={16} />, hint: "Video / frame understanding" },
-  { k: "pdf", label: "Documents", icon: <FileText size={16} />, hint: "PDFs via text extraction (app-mediated)" },
 ];
 
 /** "What will you give the model?" — Text is always on; other inputs toggle. */
@@ -187,6 +187,18 @@ export function InputPicker({ value, onChange }: { value: InputSelection; onChan
           {p.icon} {p.label}
         </button>
       ))}
+    </div>
+  );
+}
+
+/** Explains the border styles used by capability chips. */
+export function CapabilityLegend() {
+  return (
+    <div className="caps cap-legend" aria-label="Capability legend">
+      <span className="cap s-verified_supported"><Check size={13} /> <span className="cap-text">Verified</span></span>
+      <span className="cap s-family_suggests"><AlertTriangle size={12} /> <span className="cap-text">Family hint, unconfirmed</span></span>
+      <span className="cap s-unknown"><CircleHelp size={12} /> <span className="cap-text">Unknown</span></span>
+      <span className="cap s-verified_unsupported" style={{ textDecoration: "none" }}><Minus size={13} /> <span className="cap-text">Not supported</span></span>
     </div>
   );
 }

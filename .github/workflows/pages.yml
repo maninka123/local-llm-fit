@@ -2,6 +2,8 @@ name: Deploy web demo to GitHub Pages
 on:
   push:
     branches: [main]
+  schedule:
+    - cron: "17 3 * * 1" # weekly: refresh catalog metadata from ollama.com, then redeploy
   workflow_dispatch:
 
 permissions:
@@ -24,6 +26,10 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci
+      - name: Refresh catalog from official Ollama sources (metadata only)
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        continue-on-error: true # keep the committed snapshot if the crawl fails
+        run: npx tsx scripts/refresh-catalog.ts
       - run: npm run build:pages
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

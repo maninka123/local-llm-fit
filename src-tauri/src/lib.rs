@@ -201,6 +201,14 @@ fn export_file(file_name: String, contents: String) -> Result<String, String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_process::init())
+        .setup(|app| {
+            // Signed auto-updates from GitHub Releases (desktop only).
+            #[cfg(desktop)]
+            app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
+            let _ = app;
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![probe_hardware, sample_memory, http_get, ollama_request, ollama_stream, export_file])
         .run(tauri::generate_context!())
         .expect("error while running Model Fit Explorer");

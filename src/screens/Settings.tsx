@@ -13,6 +13,8 @@ import { modalityLabel } from "../domain/capabilities";
 import { DEMO_MACHINES } from "../platform/demoHardware";
 import { canReachOllamaCom, exportFile, isTauri } from "../platform/bridge";
 import { Seg, Switch } from "../components/ui";
+import { checkForUpdates, useUpdater } from "../components/Updater";
+import { ThemeSwitch } from "../components/ThemeSwitch";
 import { ReserveControls } from "./ModelDetail";
 
 function FieldRow({ label, f, fmt }: { label: string; f: Field<unknown>; fmt?: (v: unknown) => string }) {
@@ -26,7 +28,7 @@ function FieldRow({ label, f, fmt }: { label: string; f: Field<unknown>; fmt?: (
       <td>
         <span className={`badge ${f.confidence === "high" ? "verified" : f.confidence === "none" ? "" : "estimated"}`}>{f.confidence}</span>
       </td>
-      <td className="faint" style={{ fontSize: 12 }}>
+      <td className="faint" style={{ fontSize: 13.5 }}>
         {f.error ?? ""}
       </td>
     </tr>
@@ -153,11 +155,23 @@ export function Settings() {
         <section className="card">
           <div className="card-head">
             <div>
-              <h2>Demo hardware</h2>
-              <p>The browser preview cannot read your hardware. Pick a demo machine, or enter your own values below. The desktop app detects hardware automatically.</p>
+              <h2>Which computer?</h2>
+              <p>
+                In the browser we estimate your machine from what the browser exposes (GPU name, CPU threads) plus known GPU specs and your answers. The{" "}
+                <a href="https://github.com/maninka123/local-llm-fit/releases" target="_blank" rel="noreferrer noopener">
+                  desktop app
+                </a>{" "}
+                reads exact and live values.
+              </p>
             </div>
           </div>
-          <Seg label="Demo machine" value={s.demoId} onChange={s.setDemo} options={DEMO_MACHINES.map((d) => ({ value: d.id, label: d.name }))} />
+          <div className="row">
+            <button className={`btn ${s.webHardware === "browser" ? "primary" : ""}`} onClick={() => (s.webHardware === "browser" ? s.setSetupOpen(true) : s.useBrowserHardware())}>
+              {s.webHardware === "browser" ? "Edit my machine" : "Use my computer"}
+            </button>
+            <span className="faint" style={{ fontSize: 14.5 }}>or try a sample machine:</span>
+            <Seg label="Sample machine" value={s.webHardware === "demo" ? s.demoId : ""} onChange={s.setDemo} options={DEMO_MACHINES.map((d) => ({ value: d.id, label: d.name }))} />
+          </div>
         </section>
       )}
 
@@ -318,7 +332,7 @@ export function Settings() {
             <div className="control-label" style={{ margin: 0 }}>
               Theme
             </div>
-            <Seg label="Theme" value={s.theme} onChange={s.setTheme} options={[{ value: "dark", label: "Dark" }, { value: "light", label: "Light" }]} />
+            <ThemeSwitch showLabel />
             <div className="control-label" style={{ margin: 0 }}>
               Motion
             </div>
@@ -337,6 +351,8 @@ export function Settings() {
         </section>
       </div>
 
+      {isTauri() && <UpdatesCard />}
+
       <section className="card" style={{ overflowX: "auto" }}>
         <div className="card-head">
           <div>
@@ -351,6 +367,19 @@ export function Settings() {
             <RefreshCw size={15} className={s.ollamaState.status === "checking" ? "spin" : ""} /> Check again
           </button>
         </div>
+        {!isTauri() && s.ollamaState.status !== "online" && (
+          <div className="warning" style={{ marginBottom: 12 }}>
+            <span>
+              To let this website talk to Ollama on your computer, allow its address once and restart Ollama:
+              <br />
+              macOS: <span className="mono">launchctl setenv OLLAMA_ORIGINS "{location.origin}"</span>
+              <br />
+              Windows: <span className="mono">setx OLLAMA_ORIGINS "{location.origin}"</span>
+              <br />
+              Linux: add <span className="mono">Environment="OLLAMA_ORIGINS={location.origin}"</span> to the Ollama service. Your browser may also ask permission to access local network devices.
+            </span>
+          </div>
+        )}
         {s.ollamaState.installed.length > 0 && (
           <table className="table">
             <thead>
@@ -452,6 +481,38 @@ export function Settings() {
         )}
       </section>
 
+      {s.userModels.length > 0 && (
+        <section className="card">
+          <div className="card-head">
+            <div>
+              <h2>Your added models</h2>
+              <p>Saved on this computer only.</p>
+            </div>
+            <button className="btn sm" onClick={() => s.setTryOpen(true)}>
+              Try another model
+            </button>
+          </div>
+          <table className="table">
+            <tbody>
+              {s.userModels.map((u) => (
+                <tr key={u.id}>
+                  <td>
+                    <a href={`#/model/${encodeURIComponent(u.id)}`}>{u.displayName}</a>
+                  </td>
+                  <td className="faint">{u.origin.replace("_", " ")}</td>
+                  <td className="faint">{u.lastVerified ? `verified ${u.lastVerified.slice(0, 10)}` : "unverified"}</td>
+                  <td style={{ textAlign: "right" }}>
+                    <button className="btn ghost sm danger" onClick={() => s.removeUserModel(u.id)} aria-label={`Remove ${u.displayName}`}>
+                      Remove
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
+
       <section className="card">
         <div className="card-head">
           <div>
@@ -460,7 +521,7 @@ export function Settings() {
             </h2>
           </div>
         </div>
-        <ul style={{ margin: 0, paddingLeft: 18, color: "var(--text-2)", display: "grid", gap: 6, fontSize: 14 }}>
+        <ul style={{ margin: 0, paddingLeft: 18, color: "var(--text-2)", display: "grid", gap: 6, fontSize: 15.5 }}>
           <li>No telemetry, no accounts, no cloud services required.</li>
           <li>Your hardware details stay on this computer. They are never sent anywhere.</li>
           <li>Online lookups send only the model name you typed, to ollama.com, registry.ollama.ai and huggingface.co.</li>
@@ -479,5 +540,25 @@ export function Settings() {
         </div>
       </section>
     </div>
+  );
+}
+
+function UpdatesCard() {
+  const auto = useStore((s) => s.autoUpdate);
+  const setAuto = useStore((s) => s.setAutoUpdate);
+  const u = useUpdater();
+  return (
+    <section className="card">
+      <div className="card-head">
+        <div>
+          <h2>Updates</h2>
+          <p>New versions are downloaded from GitHub Releases and verified with a signature before installing.{u.current ? ` You have version ${u.current}.` : ""}</p>
+        </div>
+        <button className="btn primary" onClick={() => void checkForUpdates(true)} disabled={u.phase === "checking"}>
+          <RefreshCw size={15} className={u.phase === "checking" ? "spin" : ""} /> Check for updates
+        </button>
+      </div>
+      <Switch checked={auto} onChange={setAuto} label="Check automatically when the app starts" />
+    </section>
   );
 }

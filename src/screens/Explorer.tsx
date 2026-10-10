@@ -1,16 +1,16 @@
-import { useDeferredValue, useMemo } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 import { create } from "zustand";
 import { Columns3, Search, SlidersHorizontal, SearchX, Check, Download } from "lucide-react";
 import { useStore, type QuantChoice } from "../state/store";
 import { latestBenchmark, quantFor, useMachine } from "../state/derived";
 import { acceptsInputs, matchesCapFilter, type CapFilter } from "../domain/capabilities";
-import { CLASS_META, estimate, RESPONSIVENESS_TEXT, type Estimate, type FitClass } from "../domain/estimator";
+import { CLASS_META, estimate, RESPONSIVENESS_TEXT, type Estimate } from "../domain/estimator";
+import { BUCKETS, bucketOf, recommend, type Bucket, type Recommendation } from "../domain/recommend";
 import type { ModelVariant, UseCase } from "../domain/types";
 import { fmtBytes, fmtParams } from "../lib/units";
 import { Avatar, FitPill, Seg, Switch, TONE_VAR, Empty } from "../components/ui";
-import { CapabilityStrip, InputPicker } from "../components/Capabilities";
+import { CapabilityLegend, CapabilityStrip, InputPicker } from "../components/Capabilities";
 
-const FITS: FitClass[] = ["full_gpu", "promising_moe", "cpu_only", "hybrid_slow", "memory_constrained", "cannot_fit", "unknown"];
 const CAP_FILTERS: { k: CapFilter; label: string }[] = [
   { k: "text_only", label: "Text only" },
   { k: "image", label: "Image understanding" },
@@ -39,11 +39,11 @@ const SIZES: { k: string; label: string; min: number; max: number }[] = [
   { k: "xl", label: "40–80B", min: 40.5, max: 80.5 },
   { k: "xxl", label: "> 80B", min: 80.5, max: Infinity },
 ];
-type Sort = "fit" | "largest" | "smallest" | "name";
+type Sort = "recommended" | "largest" | "smallest" | "name";
 
 interface Filters {
   q: string;
-  fits: FitClass[];
+  buckets: Bucket[];
   caps: CapFilter[];
   uses: UseCase[];
   arch: "any" | "dense" | "moe";
@@ -55,7 +55,7 @@ interface Filters {
   set(p: Partial<Omit<Filters, "set" | "reset">>): void;
   reset(): void;
 }
-const INITIAL = { q: "", fits: [] as FitClass[], caps: [] as CapFilter[], uses: [] as UseCase[], arch: "any" as const, size: "any", installed: false, sort: "fit" as Sort, more: false, limit: 48 };
+const INITIAL = { q: "", buckets: [] as Bucket[], caps: [] as CapFilter[], uses: [] as UseCase[], arch: "any" as const, size: "any", installed: false, sort: "recommended" as Sort, more: false, limit: 48 };
 export const useExplorer = create<Filters>((set) => ({ ...INITIAL, set: (p) => set({ ...p, limit: p.limit ?? 48 }), reset: () => set(INITIAL) }));
 
 const toggle = <T,>(arr: T[], v: T) => (arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
@@ -75,10 +75,15 @@ export function Explorer() {
   const f = useExplorer();
   const q = useDeferredValue(f.q);
 
+  const families = useStore((s) => s.families);
+  const wantEmb = f.caps.includes("embeddings");
   const all = useMemo(() => {
     if (!machine) return [];
-    return [...catalog.values()].map((m) => ({ m, e: estimate(m, { ...settings, quant: quantFor(m, choice, per) }, machine) }));
-  }, [catalog, machine, settings, choice, per]);
+    return [...catalog.values()].map((m) => {
+      const e = estimate(m, { ...settings, quant: quantFor(m, choice, per) }, machine);
+      return { m, e, r: recommend(m, e, families[m.family], { wantEmbeddings: wantEmb }) };
+    });
+  }, [catalog, machine, settings, choice, per, families, wantEmb]);
 
   const rows = useMemo(() => {
     const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
@@ -90,7 +95,7 @@ export function Explorer() {
       }
       if (!acceptsInputs(m.capabilities, inputs, verifiedOnly)) return false;
       if (verifiedOnly && !m.lastVerified) return false;
-      if (f.fits.length && !f.fits.includes(e.classification)) return false;
+      if (f.buckets.length && !f.buckets.includes(bucketOf(e.classification))) return false;
       if (f.caps.length && !f.caps.every((c) => matchesCapFilter(m.capabilities, c, verifiedOnly))) return false;
       if (f.uses.length && !f.uses.some((u) => m.useCases.includes(u))) return false;
       if (f.arch === "moe" && m.architecture.value !== "moe") return false;
@@ -102,25 +107,31 @@ export function Explorer() {
       if (f.installed && !m.installed) return false;
       return true;
     });
-    const rank = (c: FitClass) => FITS.indexOf(c);
+    const rank = (b: Bucket) => BUCKETS.findIndex((x) => x.id === b);
     out.sort((a, b) => {
       if (f.sort === "name") return a.m.displayName.localeCompare(b.m.displayName);
       const pa = a.m.totalParamsB.value ?? -1;
       const pb = b.m.totalParamsB.value ?? -1;
       if (f.sort === "largest") return pb - pa;
       if (f.sort === "smallest") return (pa < 0 ? 1e9 : pa) - (pb < 0 ? 1e9 : pb);
-      return rank(a.e.classification) - rank(b.e.classification) || pb - pa;
+      const ba = bucketOf(a.e.classification);
+      const bb = bucketOf(b.e.classification);
+      if (ba !== bb) return rank(ba) - rank(bb);
+      // "Won't run": closest to fitting first; elsewhere: best recommendation first.
+      if (ba === "wont_run") return (a.e.totalNeed?.mid ?? Infinity) - (b.e.totalNeed?.mid ?? Infinity);
+      return b.r.score - a.r.score;
     });
     return out;
   }, [all, q, f, inputs, verifiedOnly]);
 
   const counts = useMemo(() => {
-    const c: Partial<Record<FitClass, number>> = {};
-    for (const r of all) c[r.e.classification] = (c[r.e.classification] ?? 0) + 1;
+    const c: Partial<Record<Bucket, number>> = {};
+    for (const r of all) c[bucketOf(r.e.classification)] = (c[bucketOf(r.e.classification)] ?? 0) + 1;
     return c;
   }, [all]);
+  const [open, setOpen] = useState<Partial<Record<Bucket, boolean>>>({});
 
-  const activeCount = f.fits.length + f.caps.length + f.uses.length + (f.arch !== "any" ? 1 : 0) + (f.size !== "any" ? 1 : 0) + (f.installed ? 1 : 0) + (f.q ? 1 : 0);
+  const activeCount = f.buckets.length + f.caps.length + f.uses.length + (f.arch !== "any" ? 1 : 0) + (f.size !== "any" ? 1 : 0) + (f.installed ? 1 : 0) + (f.q ? 1 : 0);
   const quantOptions: { value: QuantChoice; label: string; title?: string }[] = [
     { value: "AUTO", label: "Default tag", title: "Use each model's default published quantization" },
     { value: "F16", label: "FP16" },
@@ -149,7 +160,7 @@ export function Explorer() {
             <input className="input" placeholder="Search models, families, developers…  e.g. qwen coder, vision, gemma" value={f.q} onChange={(e) => f.set({ q: e.target.value })} aria-label="Search models" />
           </div>
           <select className="select" value={f.sort} onChange={(e) => f.set({ sort: e.target.value as Sort })} aria-label="Sort by">
-            <option value="fit">Best fit first</option>
+            <option value="recommended">Recommended</option>
             <option value="largest">Largest first</option>
             <option value="smallest">Smallest first</option>
             <option value="name">Name A–Z</option>
@@ -165,11 +176,11 @@ export function Explorer() {
         </div>
         <div className="filter-row">
           <span className="lbl">Fit</span>
-          {FITS.map((k) => (
-            <button key={k} className="fchip" aria-pressed={f.fits.includes(k)} onClick={() => f.set({ fits: toggle(f.fits, k) })}>
-              <span className="lamp" style={{ background: TONE_VAR[k] }} />
-              {CLASS_META[k].title}
-              <span className="faint num">{counts[k] ?? 0}</span>
+          {BUCKETS.filter((b) => (counts[b.id] ?? 0) > 0).map((b) => (
+            <button key={b.id} className="fchip" aria-pressed={f.buckets.includes(b.id)} onClick={() => f.set({ buckets: toggle(f.buckets, b.id) })} data-tip={b.blurb}>
+              <span className="lamp" style={{ background: b.tone }} />
+              {b.title}
+              <span className="faint num">{counts[b.id] ?? 0}</span>
             </button>
           ))}
         </div>
@@ -229,8 +240,10 @@ export function Explorer() {
       </section>
 
       <div className="row" style={{ marginBottom: 12 }}>
+        <CapabilityLegend />
+        <span className="spacer" />
         <span className="muted" aria-live="polite">
-          Showing <b className="num">{Math.min(rows.length, f.limit)}</b> of <b className="num">{rows.length}</b> matches
+          <b className="num">{rows.length}</b> matches{f.sort === "recommended" ? ", ranked best first in each group" : ""}
         </span>
       </div>
 
@@ -243,14 +256,47 @@ export function Explorer() {
             </button>
           </Empty>
         </div>
+      ) : f.sort === "recommended" ? (
+        <div className="stack" style={{ gap: 30 }}>
+          {BUCKETS.map((b) => {
+            const list = rows.filter((x) => bucketOf(x.e.classification) === b.id);
+            if (!list.length) return null;
+            const limit = open[b.id] ? list.length : b.id === "runs_well" ? 9 : 6;
+            return (
+              <section key={b.id} aria-labelledby={`sec-${b.id}`}>
+                <div className="section-head">
+                  <span className="lamp" style={{ background: b.tone }} />
+                  <h2 id={`sec-${b.id}`}>{b.title}</h2>
+                  <span className="faint num">{list.length}</span>
+                  <span className="muted" style={{ fontSize: 15 }}>
+                    {b.blurb}
+                    {b.id !== "wont_run" ? " Best picks first." : ""}
+                  </span>
+                </div>
+                <div className="model-grid">
+                  {list.slice(0, limit).map(({ m, e, r }, i) => (
+                    <ModelCard key={m.id} m={m} e={e} rec={b.id === "wont_run" ? undefined : r} rank={b.id === "wont_run" ? undefined : i + 1} />
+                  ))}
+                </div>
+                {list.length > limit && (
+                  <div className="row" style={{ justifyContent: "center", marginTop: 14 }}>
+                    <button className="btn" onClick={() => setOpen({ ...open, [b.id]: true })}>
+                      Show all {list.length} in “{b.title}”
+                    </button>
+                  </div>
+                )}
+              </section>
+            );
+          })}
+        </div>
       ) : (
         <div className="model-grid">
-          {rows.slice(0, f.limit).map(({ m, e }) => (
-            <ModelCard key={m.id} m={m} e={e} />
+          {rows.slice(0, f.limit).map(({ m, e, r }) => (
+            <ModelCard key={m.id} m={m} e={e} rec={r} />
           ))}
         </div>
       )}
-      {rows.length > f.limit && (
+      {f.sort !== "recommended" && rows.length > f.limit && (
         <div className="row" style={{ justifyContent: "center", marginTop: 18 }}>
           <button className="btn" onClick={() => f.set({ limit: f.limit + 48 })}>
             Show more ({rows.length - f.limit} left)
@@ -261,7 +307,7 @@ export function Explorer() {
   );
 }
 
-export function ModelCard({ m, e }: { m: ModelVariant; e: Estimate }) {
+export function ModelCard({ m, e, rec, rank }: { m: ModelVariant; e: Estimate; rec?: Recommendation; rank?: number }) {
   const navigate = useStore((s) => s.navigate);
   const compare = useStore((s) => s.compare);
   const toggleCompare = useStore((s) => s.toggleCompare);
@@ -287,6 +333,11 @@ export function ModelCard({ m, e }: { m: ModelVariant; e: Estimate }) {
         }
       }}
     >
+      {rank != null && rank <= 3 && (
+        <span className="rank-badge" data-tip={rec?.reasons.length ? `Ranked for: ${rec.reasons.join(" · ")}` : "Top pick in this group"} tabIndex={0}>
+          #{rank} pick
+        </span>
+      )}
       <div className="mcard-top">
         <Avatar name={m.family} developer={m.developer} />
         <div style={{ minWidth: 0, flex: 1 }}>
@@ -325,6 +376,11 @@ export function ModelCard({ m, e }: { m: ModelVariant; e: Estimate }) {
         <span className="faint">{e.artifact?.quantLabel ?? e.quant}</span>
       </div>
       <CapabilityStrip caps={m.capabilities} />
+      {rec && rec.reasons.length > 0 && (
+        <div className="why-line" data-tip={`Why it's ranked here: ${rec.reasons.join(" · ")}. Ranking uses size, popularity, recency, features and fit, not a quality benchmark.`}>
+          {rec.reasons.slice(0, 3).join(" · ")}
+        </div>
+      )}
       {need != null && cap != null && (
         <div className="minibar" title={`Needs ≈ ${fmtBytes(need)} · ${p.arch === "discrete" ? "usable VRAM" : p.arch === "unified" ? "GPU-usable memory" : "usable RAM"} ${fmtBytes(cap)}`}>
           <div style={{ width: `${(Math.min(need, scale) / scale) * 100}%`, background: TONE_VAR[e.classification] }} />
@@ -334,7 +390,7 @@ export function ModelCard({ m, e }: { m: ModelVariant; e: Estimate }) {
       <div className="mcard-foot">
         <div className="row" style={{ gap: 8 }}>
           <FitPill cls={e.classification} short cloud={m.cloudOnly} />
-          <span className="faint" style={{ fontSize: 12 }}>
+          <span className="faint" style={{ fontSize: 13.5 }}>
             {bench?.generationTokPerSec ? (
               <b style={{ color: "var(--good)" }}>Measured {bench.generationTokPerSec.toFixed(0)} tok/s here</b>
             ) : (

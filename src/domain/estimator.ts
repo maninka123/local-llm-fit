@@ -64,6 +64,11 @@ export interface EstimatorSettings {
   formatOverheadPct: number;
   /** User override of compute scratch allowance in GiB (null = heuristic). */
   scratchOverrideGiB: number | null;
+  /**
+   * "live": plan against memory that is free right now.
+   * "planning": plan against total memory as if other apps were closed (reserve % kept).
+   */
+  memoryBasis: "live" | "planning";
 }
 
 export const DEFAULT_SETTINGS: EstimatorSettings = {
@@ -77,6 +82,7 @@ export const DEFAULT_SETTINGS: EstimatorSettings = {
   customBitsPerWeight: null,
   formatOverheadPct: 2,
   scratchOverrideGiB: null,
+  memoryBasis: "live",
 };
 
 export interface MachineGpu {
@@ -347,8 +353,10 @@ export function imageTokensPerImage(resolution: number): Range {
 export function computePools(machine: MachineProfile, settings: EstimatorSettings): Pools {
   const r = settings.reserves;
   const notes: string[] = [];
+  const planning = settings.memoryBasis === "planning";
+  if (planning) notes.push("Planning for a fresh start: other apps assumed closed; fixed reserves kept for the OS.");
   const ramPhysical = machine.ramTotal;
-  const ramFree = machine.ramFree;
+  const ramFree = planning ? null : machine.ramFree;
   let ramUsable: number | null = null;
   let mode: "live" | "planning" = "planning";
   if (ramFree != null) {
@@ -380,7 +388,7 @@ export function computePools(machine: MachineProfile, settings: EstimatorSetting
     if (!machine.combineGpus && machine.gpus.length > 1) notes.push("Multiple GPUs selected but not combined: only the first GPU's memory is counted.");
     const sum = (xs: (number | null)[]) => (xs.some((x) => x == null) ? null : xs.reduce<number>((a, x) => a + (x as number), 0));
     const physical = sum(used.map((g) => g.vramTotal));
-    const free = sum(used.map((g) => g.vramFree));
+    const free = planning ? null : sum(used.map((g) => g.vramFree));
     base.vramPhysical = physical;
     base.vramFree = free;
     if (free != null) {
@@ -623,6 +631,11 @@ export function estimate(model: ModelVariant, settings: EstimatorSettings, machi
     const worst = [...CLASS_ORDER].reverse().find((c) => spread.has(c))!;
     warnings.push({ level: "warn", text: `Borderline: within the uncertainty range the result could be anywhere from "${CLASS_META[best].title}" to "${CLASS_META[worst].title}".` });
   }
+  // Every uncertainty bound agrees and there is lots of headroom: the answer is robust
+  // even though some inputs are estimates.
+  const capRef = classification === "full_gpu" ? (machine.arch === "unified" ? pools.unifiedGpuLimit : pools.vramUsable) : pools.ramUsable;
+  const headroom = classification === "full_gpu" ? gpuMargin : memoryMargin;
+  if (spread.size === 1 && confidence === "low" && headroom != null && capRef && headroom / capRef > 0.3 && classification !== "promising_moe") confidence = "medium";
   if (classification === "unknown") confidence = "low";
 
   // ---- responsiveness (qualitative only — no tok/s claims)

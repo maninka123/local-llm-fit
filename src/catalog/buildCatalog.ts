@@ -3,10 +3,17 @@ import { importSeedCsv, type ImportReport } from "./seedImporter";
 import { applyVerification, modelFromOllama, type OllamaVerification } from "./ollamaOfficial";
 import type { LibraryEntry } from "./ollamaLibrary";
 
+export interface FamilyInfo extends Pick<LibraryEntry, "name" | "description" | "capabilities" | "sizes" | "cloud"> {
+  /** Total downloads shown on ollama.com (popularity signal). */
+  pulls?: number | null;
+  /** Position in ollama.com's "newest" ordering (0 = newest). */
+  newestRank?: number;
+}
+
 export interface Snapshot {
   schema: number;
   generatedAt: string;
-  families: Record<string, Pick<LibraryEntry, "name" | "description" | "capabilities" | "sizes" | "cloud">>;
+  families: Record<string, FamilyInfo>;
   variants: Record<string, OllamaVerification & { fromSeed: boolean }>;
 }
 
@@ -16,6 +23,7 @@ export interface CatalogBuild {
   snapshotDate: string | null;
   snapshotApplied: number;
   snapshotAdded: number;
+  families: Record<string, FamilyInfo>;
 }
 
 /**
@@ -49,5 +57,5 @@ export function buildCatalog(seedCsv: string, snapshot: Snapshot | null, live: R
     else if (v.artifacts.length && !v.cloudOnly) models.set(id, modelFromOllama({ name: v.family, description: v.summary, capabilities: [] }, v));
   }
   for (const u of user) models.set(u.id, u);
-  return { models, report, snapshotDate: snapshot?.generatedAt ?? null, snapshotApplied: applied, snapshotAdded: added };
+  return { models, report, snapshotDate: snapshot?.generatedAt ?? null, snapshotApplied: applied, snapshotAdded: added, families: snapshot?.families ?? {} };
 }

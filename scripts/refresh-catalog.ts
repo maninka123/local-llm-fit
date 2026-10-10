@@ -12,7 +12,8 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { importSeedCsv } from "../src/catalog/seedImporter";
 import { fetchLibraryIndex, fetchTags, verifyOllamaVariant, type OllamaVerification } from "../src/catalog/ollamaOfficial";
-import type { LibraryEntry } from "../src/catalog/ollamaLibrary";
+import { parsePulls } from "../src/catalog/ollamaLibrary";
+import type { FamilyInfo } from "../src/catalog/buildCatalog";
 import { toCsv, parseCsvObjects } from "../src/lib/csv";
 
 const args = process.argv.slice(2);
@@ -53,18 +54,35 @@ async function pool<T>(items: T[], n: number, fn: (t: T, i: number) => Promise<v
 }
 
 const csvOnly = args.includes("--csv-only");
+const familiesOnly = args.includes("--families-only");
 const seedText = readFileSync(seedPath, "utf8");
 const existing = csvOnly ? JSON.parse(readFileSync("src/data/verified-snapshot.json", "utf8")) : null;
 const now: string = existing?.generatedAt ?? new Date().toISOString();
 const results: Record<string, OllamaVerification & { fromSeed: boolean }> = existing?.variants ?? {};
-if (!csvOnly) await crawl();
+if (familiesOnly) await refreshFamilies(existing ?? JSON.parse(readFileSync("src/data/verified-snapshot.json", "utf8")));
+else if (!csvOnly) await crawl();
+
+/** Popularity (pulls) and recency (newest order) for every family: two page fetches. */
+async function familyInfo(): Promise<Record<string, FamilyInfo>> {
+  const [popular, newest] = await Promise.all([retry(() => fetchLibraryIndex()), retry(() => fetchLibraryIndex("newest"))]);
+  const rank = new Map(newest.map((e, i) => [e.name, i]));
+  const out: Record<string, FamilyInfo> = {};
+  for (const e of popular) out[e.name] = { name: e.name, description: e.description, capabilities: e.capabilities, sizes: e.sizes, cloud: e.cloud, pulls: parsePulls(e.pulls), newestRank: rank.get(e.name) };
+  return out;
+}
+
+async function refreshFamilies(snap: { families: Record<string, FamilyInfo> }) {
+  snap.families = await familyInfo();
+  writeFileSync("src/data/verified-snapshot.json", JSON.stringify(snap));
+  console.log(`Updated popularity/recency for ${Object.keys(snap.families).length} families`);
+}
 writeCsv();
 
 async function crawl() {
 const seed = importSeedCsv(seedText, seedPath, now);
 console.log(`Seed: ${seed.report.imported} variants / ${seed.report.families} families`);
 
-const library = await retry(fetchLibraryIndex);
+const library = await retry(() => fetchLibraryIndex());
 const libByName = new Map(library.map((e) => [e.name, e]));
 console.log(`ollama.com/library: ${library.length} families`);
 
@@ -119,9 +137,7 @@ await pool(jobs, CONCURRENCY, async (job) => {
   if (done % 25 === 0) console.log(`  ${done}/${jobs.length} (${failed} without local artifacts)`);
 });
 
-// Compact family info for families that are new relative to the seed.
-const families: Record<string, Pick<LibraryEntry, "name" | "description" | "capabilities" | "sizes" | "cloud">> = {};
-for (const e of library) families[e.name] = { name: e.name, description: e.description, capabilities: e.capabilities, sizes: e.sizes, cloud: e.cloud };
+const families = await familyInfo();
 
 const snapshot = {
   schema: 1,

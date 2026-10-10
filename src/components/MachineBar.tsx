@@ -25,8 +25,8 @@ export function MachineBar() {
   const status = useStore((s) => s.hardwareStatus);
   const o = useStore((s) => s.overrides);
   const rescan = useStore((s) => s.rescanHardware);
-  const navigate = useStore((s) => s.navigate);
-  const ol = useStore((s) => s.ollamaState);
+  const useBrowser = useStore((s) => s.useBrowserHardware);
+  const setSetupOpen = useStore((s) => s.setSetupOpen);
   const m = useMachine();
   if (!hw || !m) {
     return (
@@ -45,11 +45,20 @@ export function MachineBar() {
   return (
     <header className="machine-bar" aria-label="Your machine">
       <div className="inner">
-        {hw.demo && (
-          <span className="badge demo" title="This web preview cannot read your hardware. Values are from a demo machine.">
-            Demo hardware
-          </span>
-        )}
+        {hw.mode === "demo" || (hw.demo && hw.mode == null) ? (
+          <button className="badge demo" style={{ cursor: "pointer" }} onClick={useBrowser} title="You're viewing a sample machine. Click to estimate for your own computer.">
+            Sample machine · use mine
+          </button>
+        ) : hw.mode === "browser" ? (
+          <button
+            className={`badge ${hw.browserConfirmed ? "demo" : "estimated pulse"}`}
+            style={{ cursor: "pointer" }}
+            onClick={() => setSetupOpen(true)}
+            title="Estimated from your browser plus known GPU specs. Click to review or edit."
+          >
+            {hw.browserConfirmed ? "Browser estimate · edit" : "Confirm your machine"}
+          </button>
+        ) : null}
         <span className="chip" title={`${hw.os.name} ${hw.os.version}`}>
           <HardDrive size={15} />
           <b>{hw.os.name}</b>
@@ -94,16 +103,12 @@ export function MachineBar() {
             </span>
           </>
         )}
-        <button className="chip" style={{ cursor: "pointer" }} onClick={() => navigate({ page: "settings" })} title={ol.error ?? `Ollama ${ol.version ?? ""}`}>
-          <span className={`pill ${ol.status === "online" ? "tone-good" : ol.status === "checking" ? "tone-neutral" : "tone-neutral"}`} style={{ height: 20, padding: "0 8px", fontSize: 11.5 }}>
-            <span className="lamp" />
-            Ollama {ol.status === "online" ? `${ol.version ?? ""}` : ol.status === "checking" ? "…" : "not running"}
-          </span>
-        </button>
         <span className="spacer" />
-        <button className="btn sm" onClick={() => void rescan()} disabled={status === "probing"} aria-label="Rescan hardware">
-          <RefreshCw size={14} className={status === "probing" ? "spin" : ""} /> Rescan
-        </button>
+        {hw.mode !== "demo" && (
+          <button className="btn icon-btn round" onClick={() => void rescan()} disabled={status === "probing"} aria-label="Rescan hardware" data-tip="Rescan hardware" data-tip-pos="below" data-tip-align="end">
+            <RefreshCw size={16} className={status === "probing" ? "spin" : ""} />
+          </button>
+        )}
       </div>
     </header>
   );

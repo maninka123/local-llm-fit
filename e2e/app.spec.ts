@@ -1,14 +1,14 @@
 import { expect, test, type Page } from "@playwright/test";
 
 // The browser preview runs on labelled demo hardware. Seed a deterministic machine.
-async function boot(page: Page, state: Record<string, unknown> = {}, hash = "#/overview") {
+async function boot(page: Page, state: Record<string, unknown> = {}, hash = "#/run") {
   await page.addInitScript((s) => {
-    localStorage.setItem("model-fit-explorer", JSON.stringify({ state: { demoId: "desktop-16g", ...s }, version: 1 }));
+    localStorage.setItem("model-fit-explorer", JSON.stringify({ state: { demoId: "desktop-16g", webHardware: "demo", theme: "dark", ...s }, version: 2 }));
   }, state);
   // Ollama is not part of these tests: make the local API unreachable quickly.
   await page.route("**/__proxy/ollama-local/**", (r) => r.abort());
   await page.goto("/" + hash);
-  await expect(page.getByText("Demo hardware").first()).toBeVisible();
+  await expect(page.getByText("Sample machine").first()).toBeVisible();
 }
 
 test("overview shows the machine, memory and recommendations", async ({ page }) => {
@@ -16,7 +16,7 @@ test("overview shows the machine, memory and recommendations", async ({ page }) 
   await expect(page.getByRole("heading", { name: "What can this computer run?" })).toBeVisible();
   await expect(page.getByText("NVIDIA GeForce RTX 4070 Ti SUPER").first()).toBeVisible();
   await expect(page.getByText(/Windows 'shared GPU memory' is system RAM/)).toBeVisible();
-  await expect(page.getByText("Fits in GPU — likely fast")).toBeVisible();
+  await expect(page.getByText("Runs well · best picks")).toBeVisible();
   await expect(page).toHaveScreenshot("overview.png", { fullPage: false, mask: [page.locator(".hero .muted")] });
 });
 
@@ -90,6 +90,7 @@ test("Apple Silicon demo uses one unified pool", async ({ page }) => {
 
 test("compare holds up to four models", async ({ page }) => {
   await boot(page, { compare: ["gemma4:26b", "qwen3:30b", "gemma3:27b", "llama3.1:8b"] }, "#/explore");
+  await page.getByLabel("Search models").fill("gpt-oss 20b");
   await page.locator(".mcard", { hasText: "gpt-oss:20b" }).first().getByRole("button", { name: /Compare/ }).click();
   await expect(page.getByRole("status")).toContainText("up to 4");
   await page.getByRole("button", { name: /^Compare/ }).first().click();
@@ -98,15 +99,18 @@ test("compare holds up to four models", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "3 models side by side" })).toBeVisible();
 });
 
-test("find a model: offline manual entry requires confirmation", async ({ page }) => {
-  await boot(page, {}, "#/find");
+test("try a specific model: offline manual entry shows compatibility and requires confirmation", async ({ page }) => {
+  await boot(page, {}, "#/run");
   await page.route("https://huggingface.co/**", (r) => r.abort());
   await page.route("**/__proxy/ollama-com/**", (r) => r.abort());
+  await page.getByRole("button", { name: "Try a specific model" }).click();
   await page.getByLabel("Model to look up").fill("Mystery 14B A2B");
   await page.getByRole("button", { name: "Search online" }).click();
   await expect(page.getByText("Can't reach the online sources.")).toBeVisible();
   await page.getByRole("button", { name: "Enter manually" }).first().click();
   const dlg = page.getByRole("dialog");
+  await expect(dlg.getByRole("heading", { name: "Is it a good fit?" })).toBeVisible();
+  await expect(dlg.locator(".compat .pill")).toBeVisible(); // live compatibility verdict
   const save = dlg.getByRole("button", { name: "Save to my catalog" });
   await expect(save).toBeDisabled();
   await dlg.getByRole("checkbox").check();
@@ -138,4 +142,45 @@ test("keyboard: skip link and sidebar navigation", async ({ page }) => {
   await page.getByRole("button", { name: "Settings & Diagnostics" }).focus();
   await page.keyboard.press("Enter");
   await expect(page.getByRole("heading", { name: "Hardware, data and privacy" })).toBeVisible();
+});
+
+test("browser mode: confirm your machine, then estimates use it", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("model-fit-explorer", JSON.stringify({ state: { theme: "light" }, version: 2 })));
+  await page.route("**/__proxy/ollama-local/**", (r) => r.abort());
+  await page.goto("/#/run");
+  await expect(page.getByRole("heading", { name: "Confirm your machine" })).toBeVisible();
+  await page.locator(".setup-card").getByLabel("No separate graphics card / not sure").uncheck();
+  await page.locator(".setup-card").getByPlaceholder("e.g. GeForce RTX 4070").fill("GeForce RTX 4070 Ti SUPER");
+  await expect(page.getByText("Known spec: 16 GB of graphics memory.")).toBeVisible();
+  await page.getByRole("group", { name: "Memory size" }).getByRole("button", { name: "32 GB" }).click();
+  await page.getByRole("button", { name: "Use these values" }).click();
+  await expect(page.getByRole("heading", { name: "Confirm your machine" })).toBeHidden();
+  await expect(page.getByRole("button", { name: "Browser estimate · edit" }).first()).toBeVisible();
+  await expect(page.locator(".machine-bar")).toContainText("16.0 GiB");
+});
+
+test("theme can be chosen: light, dark or system", async ({ page }) => {
+  await boot(page);
+  const group = page.getByRole("radiogroup", { name: "Theme" }).first();
+  await group.getByRole("radio", { name: "Light theme" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await group.getByRole("radio", { name: "Dark theme" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+});
+
+test("capability icons show a label on hover", async ({ page }) => {
+  await boot(page, {}, "#/explore");
+  const tools = page.locator(".mcard .cap", { hasText: "Tools" }).first();
+  await expect(tools).toHaveAttribute("data-tip", /Tool calling/);
+});
+
+test("playground: presets resize the model and the verdict updates", async ({ page }) => {
+  await boot(page, {}, "#/overview");
+  await expect(page.getByRole("heading", { name: "Build a model. See where it fits." })).toBeVisible();
+  const before = await page.locator(".isoviz .vox").count();
+  await page.getByRole("button", { name: "Huge 70B" }).click();
+  await expect.poll(async () => page.locator(".isoviz .vox").count()).toBeGreaterThan(before);
+  await page.getByRole("button", { name: "MoE 30B · 3B active" }).click();
+  await expect(page.locator(".control-label", { hasText: "Active per word" })).toBeVisible();
+  await expect(page.locator(".vox.lit").first()).toBeVisible();
 });
