@@ -100,9 +100,9 @@ const AMD: Row[] = [
   [/rx\s*7700\s*xt/, n("Radeon RX 7700 XT", [12])],
   [/rx\s*7600\s*xt/, n("Radeon RX 7600 XT", [16])],
   [/rx\s*7600/, n("Radeon RX 7600", [8])],
-  [/rx\s*69[05]0\s*xt/, n("Radeon RX 6900/6950 XT", [16])],
+  [/rx\s*69[05]0(\s*\/\s*69[05]0)?\s*xt/, n("Radeon RX 6900/6950 XT", [16])],
   [/rx\s*6800/, n("Radeon RX 6800 / 6800 XT", [16])],
-  [/rx\s*67[05]0\s*xt/, n("Radeon RX 6700/6750 XT", [12])],
+  [/rx\s*67[05]0(\s*\/\s*67[05]0)?\s*xt/, n("Radeon RX 6700/6750 XT", [12])],
   [/rx\s*6700/, n("Radeon RX 6700", [10])],
   [/rx\s*66[05]0/, n("Radeon RX 6600 series", [8])],
   [/rx\s*6500/, n("Radeon RX 6500 XT", [4, 8])],
@@ -223,6 +223,10 @@ export const KNOWN_GPU_NAMES: string[] = [
 
 /** Apple Silicon chips (newest first) with their unified-memory options. */
 export const APPLE_CHIPS: { name: string; options: number[] }[] = [...APPLE].reverse().map(([, name, options]) => ({ name, options }));
+
+/** Desktop / workstation graphics cards, and laptop GPUs, for the sample picker. */
+export const DESKTOP_GPU_NAMES: string[] = [...NVIDIA, ...AMD, ...INTEL].map(([, s]) => s.name);
+export const LAPTOP_GPU_NAMES: string[] = NVIDIA_LAPTOP.map(([, s]) => s.name);
 
 /** Graphics cards (non-Apple) for autocomplete. */
 export const CARD_NAMES: string[] = [...NVIDIA, ...NVIDIA_LAPTOP, ...AMD, ...INTEL].map(([, s]) => s.name);

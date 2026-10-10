@@ -9,6 +9,7 @@ import type { BenchmarkRecord, CapEvidence, HardwareOverrides, HardwareReport, I
 import { EMPTY_OVERRIDES } from "../domain/types";
 import { addEvidence } from "../domain/capabilities";
 import { DEMO_MACHINES } from "../platform/demoHardware";
+import { buildSample, presetConfig, sampleOverrides, type SampleConfig } from "../platform/samples";
 import { buildBrowserReport, detectBrowser, suggestSetup, type BrowserSetup, type BrowserSignals } from "../platform/browserDetect";
 import { isTauri, ollama, probeHardware } from "../platform/bridge";
 import { modelFromInstalled, type OllamaPsModel, type OllamaTagModel } from "../platform/ollamaLocal";
@@ -49,6 +50,8 @@ interface Persisted {
   inputs: InputSelection;
   verifiedOnly: boolean;
   demoId: string;
+  /** The configured sample machine (null: built from demoId). */
+  sample: SampleConfig | null;
   /** Web only: estimate from this browser, or show a sample machine. */
   webHardware: "browser" | "demo";
   browserSetup: BrowserSetup | null;
@@ -82,6 +85,7 @@ interface State extends Persisted {
   setModelQuant(id: string, q: QuantId): void;
   rescanHardware(): Promise<void>;
   setDemo(id: string): void;
+  setSample(cfg: SampleConfig): void;
   useBrowserHardware(): void;
   saveBrowserSetup(s: BrowserSetup): void;
   setSetupOpen(v: boolean): void;
@@ -173,6 +177,7 @@ export const useStore = create<State>()(
       inputs: { text: true },
       verifiedOnly: false,
       demoId: DEMO_MACHINES[0].id,
+      sample: null,
       webHardware: "browser",
       browserSetup: null,
       autoUpdate: true,
@@ -208,7 +213,10 @@ export const useStore = create<State>()(
         set({ hardwareStatus: "probing", hardwareError: undefined });
         try {
           if (get().webHardware === "demo") {
-            const demo = DEMO_MACHINES.find((d) => d.id === get().demoId) ?? DEMO_MACHINES[0];
+            const cfg = get().sample ?? presetConfig(get().demoId);
+            const demo = buildSample(cfg);
+            const need = sampleOverrides(cfg);
+            if (need.combineGpus && !get().overrides.combineGpus) set({ overrides: { ...get().overrides, ...need } });
             set({ hardware: { ...demo.report, mode: "demo", detectedAt: new Date().toISOString() }, hardwareStatus: "ready" });
             if (isTauri() && !get().nativeReport) void probeHardware().then((r) => r && set({ nativeReport: { ...r, mode: "native" } }));
             return;
@@ -227,7 +235,11 @@ export const useStore = create<State>()(
         }
       },
       setDemo(id) {
-        set({ demoId: id, webHardware: "demo", overrides: EMPTY_OVERRIDES });
+        get().setSample(presetConfig(id));
+        set({ demoId: id });
+      },
+      setSample(cfg) {
+        set({ sample: cfg, webHardware: "demo", overrides: { ...EMPTY_OVERRIDES, ...sampleOverrides(cfg) } });
         void get().rescanHardware();
       },
       useBrowserHardware() {
@@ -338,6 +350,7 @@ export const useStore = create<State>()(
         inputs: s.inputs,
         verifiedOnly: s.verifiedOnly,
         demoId: s.demoId,
+        sample: s.sample,
         webHardware: s.webHardware,
         browserSetup: s.browserSetup,
         autoUpdate: s.autoUpdate,

@@ -5,7 +5,7 @@ import { CARD_NAMES, lookupGpu } from "../platform/gpuSpecs";
 const WORKSTATION = /rtx pro|\bada\b|rtx a\d|radeon pro/i;
 const ORDERED = [...new Set([...CARD_NAMES.filter((n) => !WORKSTATION.test(n)), ...CARD_NAMES.filter((n) => WORKSTATION.test(n))])];
 
-export function GpuCombobox({ id, value, onChange, placeholder }: { id: string; value: string; onChange: (v: string) => void; placeholder?: string }) {
+export function GpuCombobox({ id, value, onChange, placeholder, names }: { id: string; value: string; onChange: (v: string) => void; placeholder?: string; names?: string[] }) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
   const listId = useId();
@@ -13,9 +13,10 @@ export function GpuCombobox({ id, value, onChange, placeholder }: { id: string; 
 
   const matches = useMemo(() => {
     const terms = value.toLowerCase().split(/\s+/).filter(Boolean);
-    const list = terms.length ? ORDERED.filter((n) => terms.every((t) => n.toLowerCase().includes(t))) : ORDERED;
+    const all = names ?? ORDERED;
+    const list = terms.length ? all.filter((n) => terms.every((t) => n.toLowerCase().includes(t))) : all;
     return list.slice(0, 8);
-  }, [value]);
+  }, [value, names]);
 
   const choose = (name: string) => {
     onChange(name);

@@ -3829,3 +3829,88 @@ a.btn:hover {
     white-space: nowrap;
   }
 }
+
+/* sample picker: live summary of the machine being built */
+.sample-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px dashed color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+  font-size: 15px;
+}
+.sample-summary > svg {
+  flex: none;
+  color: var(--accent);
+}
+
+/* themed dropdown (Select.tsx): same look as the graphics-card list */
+.select-wrap {
+  display: inline-block;
+  min-width: 0;
+}
+.field .select-wrap,
+.select-wrap.block {
+  display: block;
+}
+.select-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  text-align: left;
+  padding-right: 34px;
+  color: var(--text);
+  font: inherit;
+  font-size: 15px;
+}
+.select-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.select-btn[aria-expanded="true"] {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+.select-wrap .combo-list {
+  min-width: max(100%, 220px);
+  right: auto;
+}
+.combo-list li.select-item {
+  display: block;
+  padding: 0;
+  border-radius: 0;
+  cursor: default;
+}
+.combo-opt {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 15px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.combo-opt.on {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+}
+.combo-opt[aria-selected="true"] {
+  font-weight: 600;
+}
+.combo-check {
+  flex: none;
+  color: var(--accent);
+}
+.combo-group {
+  padding: 10px 12px 4px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}

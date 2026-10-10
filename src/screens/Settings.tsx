@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { Select } from "../components/Select";
 import { Download, FileUp, Lock, RefreshCw, RotateCcw, Square } from "lucide-react";
 import { useStore } from "../state/store";
 import { useMachine } from "../state/derived";
@@ -10,7 +11,6 @@ import { toCsv } from "../lib/csv";
 import { importSeedCsv } from "../catalog/seedImporter";
 import { verifyOllamaVariant } from "../catalog/ollamaOfficial";
 import { modalityLabel } from "../domain/capabilities";
-import { DEMO_MACHINES } from "../platform/demoHardware";
 import { canReachOllamaCom, exportFile, isTauri } from "../platform/bridge";
 import { Seg, Switch } from "../components/ui";
 import { checkForUpdates, useUpdater } from "../components/Updater";
@@ -169,20 +169,10 @@ export function Settings() {
             <button className={`btn ${s.webHardware === "browser" ? "primary" : ""}`} onClick={() => s.setSetupOpen(true)}>
               {s.webHardware === "browser" ? "Edit my computer" : "Use my computer"}
             </button>
-            <span className="faint" style={{ fontSize: 14.5 }}>or try a sample machine:</span>
-            <select className="select" aria-label="Sample machine" value={s.webHardware === "demo" ? s.demoId : ""} onChange={(e) => e.target.value && s.setDemo(e.target.value)} style={{ maxWidth: 360 }}>
-              <option value="">Choose a sample…</option>
-              <optgroup label="Computers">
-                {DEMO_MACHINES.filter((d) => d.group !== "board").map((d) => (
-                  <option key={d.id} value={d.id}>{d.name}</option>
-                ))}
-              </optgroup>
-              <optgroup label="Single-board & edge AI">
-                {DEMO_MACHINES.filter((d) => d.group === "board").map((d) => (
-                  <option key={d.id} value={d.id}>{d.name}</option>
-                ))}
-              </optgroup>
-            </select>
+            <span className="faint" style={{ fontSize: 14.5 }}>or</span>
+            <button className="btn" onClick={() => s.setSetupOpen(true)}>
+              Choose a sample machine…
+            </button>
           </div>
         </section>
       )}
@@ -257,28 +247,38 @@ export function Settings() {
             <span className="row" style={{ justifyContent: "space-between" }}>
               Hardware class <span className={`src-tag ${o.formFactor ? "manual" : ""}`}>{o.formFactor ? "Manually entered" : "Detected"}</span>
             </span>
-            <select className="select" value={o.formFactor ?? ""} onChange={(e) => s.setOverrides({ formFactor: (e.target.value || null) as FormFactor | null })}>
-              <option value="">Detected ({hw.formFactor.value ?? "unknown"})</option>
-              <option value="laptop">Laptop</option>
-              <option value="desktop">Desktop</option>
-              <option value="workstation">Workstation</option>
-              <option value="server">Server</option>
-              <option value="virtual_machine">Virtual machine</option>
-              <option value="embedded">Single-board computer</option>
-            </select>
+            <Select
+              label="Hardware class"
+              value={o.formFactor ?? ""}
+              onChange={(v) => s.setOverrides({ formFactor: (v || null) as FormFactor | null })}
+              options={[
+                { value: "", label: `Detected (${hw.formFactor.value ?? "unknown"})` },
+                { value: "laptop", label: "Laptop" },
+                { value: "desktop", label: "Desktop" },
+                { value: "workstation", label: "Workstation" },
+                { value: "server", label: "Server" },
+                { value: "virtual_machine", label: "Virtual machine" },
+                { value: "embedded", label: "Single-board computer" },
+              ]}
+            />
             <span className="field-hint">Form factor never changes the memory math; power limits affect speed, not capacity.</span>
           </label>
           <label className="field">
             <span className="row" style={{ justifyContent: "space-between" }}>
               Memory architecture <span className={`src-tag ${o.memoryArchitecture ? "manual" : ""}`}>{o.memoryArchitecture ? "Manually entered" : "Detected"}</span>
             </span>
-            <select className="select" value={o.memoryArchitecture ?? ""} onChange={(e) => s.setOverrides({ memoryArchitecture: (e.target.value || null) as MemoryArchitecture | null })}>
-              <option value="">Detected ({hw.memoryArchitecture.value ?? "unknown"})</option>
-              <option value="discrete">Discrete GPU (dedicated VRAM)</option>
-              <option value="unified">Unified memory (Apple Silicon, Jetson)</option>
-              <option value="integrated_shared">Integrated GPU (shares RAM)</option>
-              <option value="cpu_only">CPU only</option>
-            </select>
+            <Select
+              label="Memory architecture"
+              value={o.memoryArchitecture ?? ""}
+              onChange={(v) => s.setOverrides({ memoryArchitecture: (v || null) as MemoryArchitecture | null })}
+              options={[
+                { value: "", label: `Detected (${hw.memoryArchitecture.value ?? "unknown"})` },
+                { value: "discrete", label: "Discrete GPU (dedicated VRAM)" },
+                { value: "unified", label: "Unified memory (Apple Silicon, Jetson)" },
+                { value: "integrated_shared", label: "Integrated GPU (shares RAM)" },
+                { value: "cpu_only", label: "CPU only" },
+              ]}
+            />
           </label>
           <NumOverride label="RAM total (GiB)" detected={hw.memory.totalBytes.value} value={o.ramTotalGiB} onChange={(v) => s.setOverrides({ ramTotalGiB: v })} />
           <NumOverride label="RAM available now (GiB)" detected={hw.memory.availableBytes.value} value={o.ramFreeGiB} onChange={(v) => s.setOverrides({ ramFreeGiB: v })} />

@@ -194,3 +194,6 @@ export const COMPUTER_MACHINES: DemoMachine[] = [
 ];
 
 export const DEMO_MACHINES: DemoMachine[] = [...COMPUTER_MACHINES, ...BOARD_MACHINES];
+
+// Building blocks for configurable samples (see samples.ts).
+export { f as fixtureField, gpu as fixtureGpu, base as fixtureBase };

@@ -1,9 +1,10 @@
 import { ArrowLeft, Cpu, HardDrive, Laptop, Monitor, MemoryStick, RefreshCw, Download, Server, CircuitBoard, Boxes, Microchip } from "lucide-react";
+import { useMemo } from "react";
 import { useStore } from "../state/store";
 import { useMachine } from "../state/derived";
 import type { MachineProfile } from "../domain/estimator";
 import { useUpdater } from "./Updater";
-import { DEMO_MACHINES } from "../platform/demoHardware";
+import { buildSample, presetConfig } from "../platform/samples";
 import { fmtBytes } from "../lib/units";
 import { isTauri } from "../platform/bridge";
 import { DesktopCta } from "./DesktopCta";
@@ -63,10 +64,10 @@ function HardwareChips({ hw, m, ff, ffConf }: { hw: HardwareReport; m: MachinePr
               {gpu.vramFree != null && <span className="muted num opt">of {fmtBytes(gpu.vramTotal)}</span>}
             </span>
           )}
-          {m.arch !== "discrete" && (
+          {m.arch === "cpu_only" && (
             <span className="chip">
               <CircuitBoard size={15} />
-              <b>{m.arch === "integrated_shared" ? "GPU not used by Ollama (shares RAM)" : "No usable GPU"}</b>
+              <b>No usable GPU</b>
             </span>
           )}
           <span className="chip">
@@ -86,7 +87,9 @@ export function MachineBar() {
   const status = useStore((s) => s.hardwareStatus);
   const o = useStore((s) => s.overrides);
   const rescan = useStore((s) => s.rescanHardware);
-  const demoName = useStore((s) => DEMO_MACHINES.find((d) => d.id === s.demoId)?.name.split(" · ")[0] ?? "sample");
+  const sample = useStore((s) => s.sample);
+  const demoId = useStore((s) => s.demoId);
+  const demoName = useMemo(() => buildSample(sample ?? presetConfig(demoId)).name.split(" · ")[0], [sample, demoId]);
   const setSetupOpen = useStore((s) => s.setSetupOpen);
   const basis = useStore((s) => s.settings.memoryBasis);
   const browserSetup = useStore((s) => s.browserSetup);
@@ -151,8 +154,8 @@ export function MachineBar() {
           </button>
         )}
         {isSample && (
-          <button className="btn primary sm back-mine" onClick={useMine} data-tip="Show results for your own computer" data-tip-pos="below" data-tip-align="end">
-            <ArrowLeft size={15} /> {isTauri() || browserSetup ? "Back to my computer" : "Set up my computer"}
+          <button className="btn primary sm back-mine" onClick={useMine} data-tip={isTauri() || browserSetup ? "Back to results for your own computer" : "Set up your own computer"} data-tip-pos="below" data-tip-align="end">
+            <ArrowLeft size={15} /> My computer
           </button>
         )}
         {!isTauri() && <DesktopCta />}

@@ -1,4 +1,5 @@
 import { useDeferredValue, useMemo, useState } from "react";
+import { Select } from "../components/Select";
 import { create } from "zustand";
 import { Columns3, Search, SlidersHorizontal, SearchX, Check, Download } from "lucide-react";
 import { useStore, type QuantChoice } from "../state/store";
@@ -160,12 +161,17 @@ export function Explorer() {
             <Search size={17} />
             <input className="input" placeholder="Search models, families, developers…  e.g. qwen coder, vision, gemma" value={f.q} onChange={(e) => f.set({ q: e.target.value })} aria-label="Search models" />
           </div>
-          <select className="select" value={f.sort} onChange={(e) => f.set({ sort: e.target.value as Sort })} aria-label="Sort by">
-            <option value="recommended">Recommended</option>
-            <option value="largest">Largest first</option>
-            <option value="smallest">Smallest first</option>
-            <option value="name">Name A–Z</option>
-          </select>
+          <Select
+            label="Sort by"
+            value={f.sort}
+            onChange={(v) => f.set({ sort: v })}
+            options={[
+              { value: "recommended" as Sort, label: "Recommended" },
+              { value: "largest" as Sort, label: "Largest first" },
+              { value: "smallest" as Sort, label: "Smallest first" },
+              { value: "name" as Sort, label: "Name A–Z" },
+            ]}
+          />
           <button className="btn" onClick={() => f.set({ more: !f.more })} aria-expanded={f.more}>
             <SlidersHorizontal size={15} /> Filters{activeCount ? ` (${activeCount})` : ""}
           </button>

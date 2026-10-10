@@ -202,7 +202,8 @@ test("browser setup: Apple Silicon path offers the chip's real memory options", 
   await page.goto("/#/run");
   const card = page.locator(".setup-card");
   await card.getByRole("radio", { name: /Apple Silicon/ }).click();
-  await card.getByLabel("Which chip?").selectOption("Apple M3 Pro");
+  await card.getByLabel("Which chip?").click();
+  await page.getByRole("option", { name: /^Apple M3 Pro/ }).click();
   const mem = card.getByRole("group", { name: "Memory size" });
   await expect(mem.getByRole("button")).toHaveText(["18 GB", "36 GB"]);
   await mem.getByRole("button", { name: "36 GB" }).click();
@@ -210,23 +211,27 @@ test("browser setup: Apple Silicon path offers the chip's real memory options", 
   await expect(page.locator(".machine-bar")).toContainText("Unified");
 });
 
-test("setup: switch to a sample machine, adjust its memory, and switch back", async ({ page }) => {
+test("setup: build a sample desktop from its parts, and switch back", async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem("model-fit-explorer", JSON.stringify({ state: { theme: "light", browserSetup: { confirmed: true, gpuName: "Apple M3", vramGiB: null, ramGiB: 16, formFactor: "laptop" } }, version: 2 })));
   await page.route("**/__proxy/ollama-local/**", (r) => r.abort());
   await page.goto("/#/run");
   await page.getByRole("button", { name: "My computer · edit" }).first().click();
   const dlg = page.getByRole("dialog");
   await dlg.getByRole("radio", { name: /Sample machine/ }).click();
-  await dlg.getByRole("radio", { name: /Gaming desktop/ }).click();
+  await dlg.getByRole("radio", { name: /Desktop \/ workstation/ }).click();
+  // the card's real memory sizes are offered once it is chosen
+  await dlg.getByRole("combobox", { name: "Graphics card" }).fill("3060");
+  await page.getByRole("option", { name: /^GeForce RTX 3060\b(?! Ti)/ }).click();
+  await expect(dlg.getByRole("group", { name: "Graphics memory" }).getByRole("button")).toHaveText(["12 GB", "8 GB"]);
+  await dlg.getByRole("group", { name: "Number of graphics cards" }).getByRole("button", { name: "Two" }).click();
   await dlg.getByRole("button", { name: "More System memory (RAM)" }).click();
-  await expect(dlg.getByText("Changed")).toBeVisible();
+  await expect(dlg.locator(".sample-summary")).toContainText("2 × RTX 3060 · 33 GB RAM");
   await dlg.getByRole("button", { name: "Show this machine" }).click();
   await expect(dlg).toBeHidden();
-  await expect(page.getByRole("status")).toContainText("with your changes");
-  await expect(page.locator(".machine-bar")).toContainText("Sample: Gaming desktop");
-  await expect(page.locator(".machine-bar")).toContainText("33.0 GiB"); // 32 GB + one 1 GB step
+  await expect(page.locator(".machine-bar")).toContainText("Sample: Workstation");
+  await expect(page.locator(".machine-bar")).toContainText("33.0 GiB");
   // back to my computer
-  await page.getByRole("button", { name: /Sample: Gaming desktop/ }).click();
+  await page.getByRole("button", { name: /Sample: Workstation/ }).click();
   await page.getByRole("dialog").getByRole("radio", { name: /My computer/ }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Use my computer" }).click();
   await expect(page.getByRole("button", { name: "My computer · edit" }).first()).toBeVisible();
@@ -259,14 +264,16 @@ test("web: the desktop app offer opens with a download for this system", async (
 
 test("samples: a Jetson board runs models on its CUDA GPU from shared memory", async ({ page }) => {
   await boot(page);
-  await page.getByRole("button", { name: /Sample: Gaming desktop/ }).click();
+  await page.getByRole("button", { name: /Sample: Desktop PC/ }).click();
   const dlg = page.getByRole("dialog");
-  await expect(dlg.getByRole("radiogroup", { name: "Sample machines" }).getByRole("radio")).toHaveCount(6); // 5 computers + one board option
+  await expect(dlg.getByRole("radiogroup", { name: "Sample machines" }).getByRole("radio")).toHaveCount(5);
   await dlg.getByRole("radio", { name: /Single-board & edge AI/ }).click();
   const board = dlg.getByLabel("Which board?");
-  await board.selectOption("rpi5-8");
+  await board.click();
+  await page.getByRole("option", { name: /^Raspberry Pi 5 \(8 GB\)/ }).click();
   await expect(dlg.getByText("GPU not usable:")).toBeVisible(); // has a GPU, but Ollama can't use it
-  await board.selectOption("jetson-orin-nano-8");
+  await board.click();
+  await page.getByRole("option", { name: /^Jetson Orin Nano Super/ }).click();
   await expect(dlg.getByText("GPU usable:")).toBeVisible();
   await dlg.getByRole("button", { name: "Show this machine" }).click();
   const bar = page.locator(".machine-bar");
@@ -275,6 +282,22 @@ test("samples: a Jetson board runs models on its CUDA GPU from shared memory", a
   await expect(page.getByText("CUDA acceleration")).toBeVisible();
   await expect(page.getByText("Runs well · best picks")).toBeVisible();
   // one click back to your own computer
-  await page.getByRole("button", { name: /Back to my computer|Set up my computer/ }).first().click();
+  await page.getByRole("button", { name: "My computer", exact: true }).click();
   await expect(bar).not.toContainText("Sample:");
+});
+
+test("samples: a Mac offers only its own chips, and each chip's memory sizes", async ({ page }) => {
+  await boot(page);
+  await page.getByRole("button", { name: /Sample: Desktop PC/ }).click();
+  const dlg = page.getByRole("dialog");
+  await dlg.getByRole("radio", { name: /^Mac/ }).click();
+  await dlg.getByRole("group", { name: "Mac model" }).getByRole("button", { name: "Mac Studio" }).click();
+  await dlg.getByLabel("Chip").click();
+  await expect(page.getByRole("option", { name: /^Apple M4 Pro/ })).toHaveCount(0); // not sold in a Mac Studio
+  await page.getByRole("option", { name: /^Apple M2 Ultra/ }).click();
+  await expect(dlg.getByRole("group", { name: "Unified memory" }).getByRole("button")).toHaveText(["64 GB", "128 GB", "192 GB"]);
+  await dlg.getByRole("group", { name: "Unified memory" }).getByRole("button", { name: "192 GB" }).click();
+  await dlg.getByRole("button", { name: "Show this machine" }).click();
+  await expect(page.locator(".machine-bar")).toContainText("Sample: Mac Studio");
+  await expect(page.locator(".machine-bar")).toContainText("Apple M2 Ultra");
 });

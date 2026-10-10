@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Select } from "../components/Select";
 import { AlertTriangle, ArrowLeft, BadgeCheck, ChevronDown, Columns3, Download, ExternalLink, FlaskConical, Info, Layers, RefreshCw, ShieldAlert, Sparkles, OctagonAlert } from "lucide-react";
 import { useStore } from "../state/store";
 import { ageText, isStale, latestBenchmark, quantFor, useMachine } from "../state/derived";
@@ -355,12 +356,17 @@ function Detail({ m }: { m: ModelVariant }) {
                 </label>
                 <label className="field">
                   Image size
-                  <select className="select" value={settings.imageResolution} onChange={(e) => setSettings({ imageResolution: +e.target.value })}>
-                    <option value={448}>Small (~448 px)</option>
-                    <option value={896}>Medium (~896 px)</option>
-                    <option value={1344}>Large (~1344 px)</option>
-                    <option value={2048}>Very large (~2048 px)</option>
-                  </select>
+                  <Select
+                    label="Image size"
+                    value={settings.imageResolution}
+                    onChange={(v) => setSettings({ imageResolution: v })}
+                    options={[
+                      { value: 448, label: "Small (~448 px)" },
+                      { value: 896, label: "Medium (~896 px)" },
+                      { value: 1344, label: "Large (~1344 px)" },
+                      { value: 2048, label: "Very large (~2048 px)" },
+                    ]}
+                  />
                 </label>
               </div>
             )}

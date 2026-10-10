@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Apple, CheckCircle2, Cpu, Download, FlaskConical, HelpCircle, Laptop, Microchip, Monitor, Sparkles } from "lucide-react";
+import { AlertTriangle, Apple, Briefcase, CheckCircle2, Cpu, Download, FlaskConical, HelpCircle, Laptop, Microchip, Monitor, Sparkles } from "lucide-react";
 import { useStore } from "../state/store";
 import { detectBrowser, suggestSetup, type BrowserSetup } from "../platform/browserDetect";
 import { isTauri } from "../platform/bridge";
-import { APPLE_CHIPS, COMMON_RAM_GB, lookupGpu } from "../platform/gpuSpecs";
+import { APPLE_CHIPS, COMMON_RAM_GB, DESKTOP_GPU_NAMES, LAPTOP_GPU_NAMES, lookupGpu } from "../platform/gpuSpecs";
 import { GpuCombobox } from "./GpuCombobox";
+import { Select } from "./Select";
 import { Modal, Seg } from "./ui";
-import { DEMO_MACHINES, type DemoMachine } from "../platform/demoHardware";
+import { BOARD_MACHINES, type DemoMachine } from "../platform/demoHardware";
+import { DEFAULT_SAMPLES, MAC_MODELS, buildSample, chipsFor, presetConfig, vramOptionsFor, type SampleConfig, type SampleKind } from "../platform/samples";
 import { GiB } from "../lib/units";
 import { FormIcon } from "./MachineBar";
 
@@ -38,148 +40,197 @@ function SetupForm({ onDone }: { onDone?: () => void }) {
   );
 }
 
-const COMPUTERS = DEMO_MACHINES.filter((d) => d.group !== "board");
-const BOARDS = DEMO_MACHINES.filter((d) => d.group === "board");
+const BOARDS = BOARD_MACHINES;
 /** Board whose GPU Ollama can use (Jetson Orin/Thor, DGX Spark: CUDA on shared memory). */
 const boardGpuUsable = (d: DemoMachine) => d.report.memoryArchitecture.value === "unified";
+const PRO_CARD = /rtx pro|\bada\b|rtx a\d|radeon pro/i;
+const DESKTOP_CARDS = [...DESKTOP_GPU_NAMES.filter((n) => !PRO_CARD.test(n)), ...DESKTOP_GPU_NAMES.filter((n) => PRO_CARD.test(n))];
+
+const KINDS: { id: SampleKind; title: string; sub: string; icon: React.ReactNode }[] = [
+  { id: "desktop", title: "Desktop / workstation", sub: "Pick the graphics card", icon: <Monitor size={22} /> },
+  { id: "laptop", title: "Gaming laptop", sub: "Pick the laptop GPU", icon: <Laptop size={22} /> },
+  { id: "mac", title: "Mac", sub: "Pick the Mac and chip", icon: <Apple size={22} /> },
+  { id: "office", title: "Office laptop", sub: "Built-in graphics", icon: <Briefcase size={22} /> },
+  { id: "board", title: "Single-board & edge AI", sub: "Raspberry Pi, Jetson, DGX Spark…", icon: <Microchip size={22} /> },
+];
 
 function SamplePicker({ onDone }: { onDone?: () => void }) {
-  const webHardware = useStore((s) => s.webHardware);
+  const savedSample = useStore((s) => s.sample);
   const demoId = useStore((s) => s.demoId);
-  const overrides = useStore((s) => s.overrides);
-  const [sel, setSel] = useState(demoId);
-  const sample = DEMO_MACHINES.find((d) => d.id === sel) ?? DEMO_MACHINES[0];
-  const isBoard = sample.group === "board";
-  const lastBoard = BOARDS.some((b) => b.id === demoId) ? demoId : (BOARDS.find((b) => b.id === "jetson-orin-nano-8") ?? BOARDS[0]).id;
-  const unified = sample.report.memoryArchitecture.value === "unified";
-  const gpu = sample.report.gpus.find((g) => g.kind === "discrete");
-  const baseVram = gpu?.dedicatedBytes.value ? Math.round(gpu.dedicatedBytes.value / GiB) : null;
-  const baseRam = Math.round((sample.report.memory.totalBytes.value ?? 0) / GiB);
-  const keepEdits = webHardware === "demo" && demoId === sel;
-  const [vram, setVram] = useState<number | null>(keepEdits ? (overrides.vramTotalGiB ?? baseVram) : baseVram);
-  const [ram, setRam] = useState<number>(keepEdits ? (overrides.ramTotalGiB ?? baseRam) : baseRam);
+  const saved = savedSample ?? presetConfig(demoId);
+  // One draft per type, so switching types keeps what you picked.
+  const [drafts, setDrafts] = useState<Record<SampleKind, SampleConfig>>(() => ({ ...DEFAULT_SAMPLES, [saved.kind]: saved }));
+  const [kind, setKind] = useState<SampleKind>(saved.kind);
+  const cfg = drafts[kind];
+  const update = (p: Partial<SampleConfig>) => setDrafts((d) => ({ ...d, [kind]: { ...d[kind], ...p } as SampleConfig }));
+  const preview = useMemo(() => buildSample(cfg), [cfg]);
+  const ready = (cfg.kind !== "desktop" && cfg.kind !== "laptop") || (cfg.gpu.trim() !== "" && cfg.vramGiB > 0);
 
-  const pick = (id: string) => {
-    setSel(id);
-    const d = DEMO_MACHINES.find((x) => x.id === id)!;
-    const g = d.report.gpus.find((x) => x.kind === "discrete");
-    setVram(g?.dedicatedBytes.value ? Math.round(g.dedicatedBytes.value / GiB) : null);
-    setRam(Math.round((d.report.memory.totalBytes.value ?? 0) / GiB));
+  const pickCard = (name: string) => {
+    const opts = vramOptionsFor(name);
+    update({ gpu: name, ...(opts.length ? { vramGiB: opts[0] } : {}) } as Partial<SampleConfig>);
   };
 
   const apply = () => {
     const st = useStore.getState();
-    st.setDemo(sel); // resets overrides, then we apply only what the user changed
-    const o: Partial<typeof overrides> = {};
-    if (ram !== baseRam) {
-      o.ramTotalGiB = ram;
-      o.ramFreeGiB = Math.round(ram * 0.7 * 10) / 10; // assume a typical 30% already in use
-      // Keep the GPU's share of unified memory in proportion (e.g. 27 of 36 GB → 12 of 16 GB).
-      const limit = sample.report.unifiedGpuWorkingSetBytes.value;
-      if (unified && limit != null && baseRam > 0) o.unifiedGpuLimitGiB = Math.round(((limit / GiB) * ram) / baseRam * 10) / 10;
-    }
-    if (!unified && vram != null && vram !== baseVram) {
-      o.vramTotalGiB = vram;
-      o.vramFreeGiB = Math.round(vram * 0.95 * 10) / 10;
-    }
-    if (Object.keys(o).length) st.setOverrides(o);
+    st.setSample(cfg);
     st.setSetupOpen(false);
     onDone?.();
-    st.showToast(`Now showing the sample: ${sample.name.split(" · ")[0]}${Object.keys(o).length ? " (with your changes)" : ""}`, "info");
+    st.showToast(`Now showing the sample: ${preview.name.split(" · ").slice(0, 2).join(" · ")}`, "info");
   };
 
-  const numberField = (label: string, value: number | null, set: (v: number) => void, hint: string, changed: boolean) => (
-    <MemoryStepper label={label} value={value} onChange={set} hint={hint} changed={changed} />
-  );
+  const cardFields = (c: Extract<SampleConfig, { kind: "desktop" | "laptop" }>) => {
+    const opts = vramOptionsFor(c.gpu);
+    const spec = lookupGpu(c.gpu);
+    return (
+      <>
+        <div className="field">
+          <label htmlFor="sample-gpu">{c.kind === "laptop" ? "Laptop GPU" : "Graphics card"}</label>
+          <GpuCombobox id="sample-gpu" value={c.gpu} onChange={pickCard} names={c.kind === "laptop" ? LAPTOP_GPU_NAMES : DESKTOP_CARDS} placeholder="Start typing, e.g. RTX 4070" />
+          <span className="field-hint">{spec?.vendor === "amd" || spec?.vendor === "intel" ? "Ollama GPU support for AMD and Intel cards varies by model." : "Type to search, or pick from the list."}</span>
+        </div>
+        <div className="field">
+          <span>Graphics memory (VRAM)</span>
+          {opts.length > 0 ? (
+            <Seg label="Graphics memory" value={c.vramGiB} onChange={(v) => update({ vramGiB: v } as Partial<SampleConfig>)} options={opts.map((g) => ({ value: g, label: `${g} GB` }))} />
+          ) : (
+            <MemoryStepper label="Graphics memory (VRAM)" value={c.vramGiB} onChange={(v) => update({ vramGiB: v } as Partial<SampleConfig>)} hint="Not in our list: enter its memory." changed={false} />
+          )}
+        </div>
+      </>
+    );
+  };
 
   return (
     <div className="stack appear" style={{ gap: 16 }}>
       <p className="muted" style={{ margin: 0, fontSize: 15 }}>
-        Pick a ready-made computer, then adjust it if you like. Your own answers are kept for when you switch back.
+        Pick a type of computer, then its parts. Your own answers are kept for when you switch back.
       </p>
       <div className="sample-grid" role="radiogroup" aria-label="Sample machines">
-        {COMPUTERS.map((d) => (
-          <button key={d.id} type="button" role="radio" aria-checked={sel === d.id} className={`choice-card ${sel === d.id ? "on" : ""}`} onClick={() => pick(d.id)}>
-            <span className="choice-icon">
-              <FormIcon f={d.report.formFactor.value} size={22} />
-            </span>
-            <span className="choice-title">{d.name.split(" · ")[0]}</span>
-            <span className="choice-sub">{d.name.split(" · ").slice(1).join(" · ")}</span>
+        {KINDS.map((k) => (
+          <button key={k.id} type="button" role="radio" aria-checked={kind === k.id} className={`choice-card ${kind === k.id ? "on" : ""}`} onClick={() => setKind(k.id)}>
+            <span className="choice-icon">{k.icon}</span>
+            <span className="choice-title">{k.title}</span>
+            <span className="choice-sub">{k.sub}</span>
             <CheckCircle2 size={18} className="choice-check" aria-hidden />
           </button>
         ))}
-        <button type="button" role="radio" aria-checked={isBoard} className={`choice-card ${isBoard ? "on" : ""}`} onClick={() => !isBoard && pick(lastBoard)}>
-          <span className="choice-icon">
-            <Microchip size={22} />
-          </span>
-          <span className="choice-title">Single-board &amp; edge AI</span>
-          <span className="choice-sub">{isBoard ? sample.name.split(" · ")[0] : "Raspberry Pi, Jetson, DGX Spark…"}</span>
-          <CheckCircle2 size={18} className="choice-check" aria-hidden />
-        </button>
       </div>
-      {isBoard && (
-        <div className="setup-step appear">
-          <label className="setup-q" htmlFor="board-pick">
-            <span className="step-num">
-              <Microchip size={15} />
-            </span>{" "}
-            Which board?
-          </label>
-          <select id="board-pick" className="select" value={sel} onChange={(e) => pick(e.target.value)} style={{ maxWidth: 460 }}>
-            <optgroup label="GPU used by Ollama (CUDA)">
-              {BOARDS.filter(boardGpuUsable).map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name.split(" · ").slice(0, 2).join(" · ")}
-                </option>
-              ))}
-            </optgroup>
-            <optgroup label="Has a GPU Ollama can't use (runs on the CPU)">
-              {BOARDS.filter((d) => !boardGpuUsable(d)).map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name.split(" · ").slice(0, 2).join(" · ")}
-                </option>
-              ))}
-            </optgroup>
-          </select>
-          {boardGpuUsable(sample) ? (
-            <p className="board-gpu ok">
-              <CheckCircle2 size={16} /> <span><b>GPU usable:</b> {sample.report.gpus[0]?.name}. Ollama runs models on its CUDA GPU, sharing the board's memory.</span>
-            </p>
-          ) : (
-            <p className="board-gpu warn">
-              <AlertTriangle size={16} />{" "}
-              <span>
-                <b>GPU not usable:</b> it has a GPU ({sample.report.gpus[0]?.name ?? "integrated"}), but Ollama can't use it, so models run on the CPU.{" "}
-                <span className="muted">{sample.report.formFactorEvidence[1]}.</span>
-              </span>
-            </p>
+
+      <div className="setup-step sample-edit appear" key={kind}>
+        <div className="grid cols-2" style={{ gap: 16 }}>
+          {cfg.kind === "desktop" && (
+            <>
+              {cardFields(cfg)}
+              <div className="field">
+                <span>How many graphics cards?</span>
+                <Seg label="Number of graphics cards" value={cfg.gpuCount} onChange={(v) => update({ gpuCount: v } as Partial<SampleConfig>)} options={[{ value: 1 as const, label: "One" }, { value: 2 as const, label: "Two" }]} />
+                <span className="field-hint">{cfg.gpuCount === 2 ? "Ollama spreads a model across both cards." : "Most PCs have one."}</span>
+              </div>
+              <MemoryStepper label="System memory (RAM)" value={cfg.ramGiB} onChange={(v) => update({ ramGiB: v })} hint="Used when a model doesn't fit in the graphics card." changed={false} />
+            </>
+          )}
+          {cfg.kind === "laptop" && (
+            <>
+              {cardFields(cfg)}
+              <MemoryStepper label="System memory (RAM)" value={cfg.ramGiB} onChange={(v) => update({ ramGiB: v })} hint="Used when a model doesn't fit in the GPU." changed={false} />
+            </>
+          )}
+          {cfg.kind === "mac" && (
+            <>
+              <div className="field" style={{ gridColumn: "1 / -1" }}>
+                <span>Which Mac?</span>
+                <Seg
+                  label="Mac model"
+                  value={cfg.model}
+                  onChange={(model) => {
+                    const chips = chipsFor(model);
+                    const chip = chips.find((c) => c.name === cfg.chip) ?? chips[0];
+                    update({ model, chip: chip.name, ramGiB: chip.options.includes(cfg.ramGiB) ? cfg.ramGiB : chip.options[0] } as Partial<SampleConfig>);
+                  }}
+                  options={MAC_MODELS.map((m) => ({ value: m, label: m }))}
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="sample-chip">Chip</label>
+                <Select
+                  id="sample-chip"
+                  value={cfg.chip}
+                  onChange={(name) => {
+                    const chip = chipsFor(cfg.model).find((c) => c.name === name)!;
+                    update({ chip: chip.name, ramGiB: chip.options.includes(cfg.ramGiB) ? cfg.ramGiB : chip.options[0] } as Partial<SampleConfig>);
+                  }}
+                  options={chipsFor(cfg.model).map((c) => ({ value: c.name, label: c.name, meta: `${c.options.join(" / ")} GB` }))}
+                />
+                <span className="field-hint">Only chips Apple put in the {cfg.model}.</span>
+              </div>
+              <div className="field">
+                <span>Memory</span>
+                <Seg label="Unified memory" value={cfg.ramGiB} onChange={(v) => update({ ramGiB: v })} options={(chipsFor(cfg.model).find((c) => c.name === cfg.chip)?.options ?? [cfg.ramGiB]).map((g) => ({ value: g, label: `${g} GB` }))} />
+                <span className="field-hint">Shared by the CPU and GPU.</span>
+              </div>
+            </>
+          )}
+          {cfg.kind === "office" && (
+            <>
+              <div className="field">
+                <span>Memory (RAM)</span>
+                <Seg label="Memory" value={cfg.ramGiB} onChange={(v) => update({ ramGiB: v })} options={[8, 16, 24, 32, 64].map((g) => ({ value: g, label: `${g} GB` }))} />
+              </div>
+              <p className="board-gpu warn" style={{ margin: 0 }}>
+                <AlertTriangle size={16} /> <span>Built-in graphics aren't used by Ollama, so models run on the CPU.</span>
+              </p>
+            </>
+          )}
+          {cfg.kind === "board" && (
+            <>
+              <div className="field">
+                <label htmlFor="board-pick">Which board?</label>
+                <Select
+                  id="board-pick"
+                  value={cfg.boardId}
+                  onChange={(id) => update({ boardId: id, ramGiB: presetConfig(id).ramGiB } as Partial<SampleConfig>)}
+                  options={[...BOARDS.filter(boardGpuUsable), ...BOARDS.filter((d) => !boardGpuUsable(d))].map((d) => ({
+                    value: d.id,
+                    label: d.name.split(" · ")[0],
+                    meta: d.name.split(" · ")[1],
+                    group: boardGpuUsable(d) ? "GPU used by Ollama (CUDA)" : "GPU Ollama can't use (runs on the CPU)",
+                  }))}
+                />
+              </div>
+              <MemoryStepper label={boardGpuUsable(preview) ? "Shared memory" : "Memory (RAM)"} value={cfg.ramGiB} onChange={(v) => update({ ramGiB: v })} hint={preview.report.cpu.brand} changed={cfg.ramGiB !== presetConfig(cfg.boardId).ramGiB} />
+              <div style={{ gridColumn: "1 / -1" }}>
+                {boardGpuUsable(preview) ? (
+                  <p className="board-gpu ok" style={{ margin: 0 }}>
+                    <CheckCircle2 size={16} /> <span><b>GPU usable:</b> {preview.report.gpus[0]?.name}. Ollama runs models on its CUDA GPU, sharing the board's memory.</span>
+                  </p>
+                ) : (
+                  <p className="board-gpu warn" style={{ margin: 0 }}>
+                    <AlertTriangle size={16} />{" "}
+                    <span>
+                      <b>GPU not usable:</b> it has a GPU ({preview.report.gpus[0]?.name ?? "integrated"}), but Ollama can't use it, so models run on the CPU. <span className="muted">{preview.report.formFactorEvidence[1]}.</span>
+                    </span>
+                  </p>
+                )}
+              </div>
+            </>
           )}
         </div>
-      )}
-      <div className="setup-step sample-edit appear" key={sel}>
-        <div className="setup-q">
-          <span className="step-num">✎</span> Adjust this sample (optional)
-        </div>
-        <div className="grid cols-2" style={{ gap: 16 }}>
-          {unified
-            ? numberField("Unified memory", ram, setRam, "Shared by the CPU and GPU.", ram !== baseRam)
-            : (
-              <>
-                {gpu && numberField("Graphics memory (VRAM)", vram, (v) => setVram(v), gpu.name, vram !== baseVram)}
-                {numberField("System memory (RAM)", ram, setRam, sample.report.cpu.brand, ram !== baseRam)}
-              </>
-            )}
-        </div>
+      </div>
+
+      <div className="sample-summary" aria-live="polite">
+        <FormIcon f={preview.report.formFactor.value} size={18} />
+        <span>
+          <b>{preview.name.split(" · ")[0]}</b> · {preview.name.split(" · ").slice(1).join(" · ")}
+        </span>
       </div>
       <div className="row">
-        <button className="btn primary" onClick={apply}>
+        <button className="btn primary" onClick={apply} disabled={!ready}>
           <CheckCircle2 size={16} /> Show this machine
         </button>
-        {(ram !== baseRam || vram !== baseVram) && (
-          <button className="btn ghost" onClick={() => pick(sel)}>
-            Reset values
-          </button>
-        )}
+        <button className="btn ghost" onClick={() => setDrafts((d) => ({ ...d, [kind]: DEFAULT_SAMPLES[kind] }))}>
+          Reset
+        </button>
       </div>
     </div>
   );
@@ -419,14 +470,7 @@ function MineForm({ onDone }: { onDone?: () => void }) {
         {choice === "apple" && (
           <div className="field appear" style={{ marginTop: 14, maxWidth: 420 }} key="apple">
             <label htmlFor="setup-chip">Which chip?</label>
-            <select id="setup-chip" className="select" value={chip} onChange={(e) => pickChip(e.target.value)}>
-              <option value="">Choose your chip…</option>
-              {APPLE_CHIPS.map((c) => (
-                <option key={c.name} value={c.name}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+            <Select id="setup-chip" value={chip} onChange={pickChip} options={[{ value: "", label: "Choose your chip…" }, ...APPLE_CHIPS.map((c) => ({ value: c.name, label: c.name, meta: `${c.options.join(" / ")} GB` }))]} />
             <span className="field-hint">Apple menu → About This Mac → Chip. The GPU shares memory with the CPU.</span>
           </div>
         )}

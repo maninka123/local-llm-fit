@@ -2,6 +2,12 @@
 
 Short, user-facing notes. The section for each version is shown in the app's update window.
 
+## 1.0.19
+- Build your sample: desktop/workstation (graphics card, memory size, 1 or 2 cards), gaming laptop (laptop GPU), Mac (model, chip and memory), office laptop or board
+- Dropdowns now match the app's light and dark theme
+- Shorter top-bar buttons: "My computer" and "Desktop app"
+- Fix: two AMD cards (RX 6900/6950 XT, RX 6700/6750 XT) were not recognised correctly
+
 ## 1.0.18
 - The machine your results are for is now ringed in the top bar (dashed for a sample)
 - While a sample is shown, a "Back to my computer" button sits top-right

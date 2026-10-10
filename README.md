@@ -14,7 +14,7 @@
 - **What can I run.** Every model in a 430+ variant catalog is sorted into *Runs well · Runs, but slower · Tight fit · Won't run* and ranked best-first using size, popularity, recency, features and fit (each card says why).
 - **Try a specific model.** Search Ollama or Hugging Face, paste a link, or type the details. See compatibility instantly, then save it to your catalog.
 - **Honest estimates.** Exact file sizes, layers and KV heads come from the official Ollama registry. Apple Silicon is treated as one unified pool, Windows "shared GPU memory" is never counted as VRAM, and speed is never invented. A local benchmark (through Ollama, only when you click) measures real tokens per second.
-- **Sample machines** to explore without your own hardware: gaming PCs, a MacBook, a workstation, and single-board / edge AI devices (Raspberry Pi 4/5, Orange Pi 5 Plus, Jetson Nano, Orin Nano Super, Orin NX, AGX Orin, AGX Thor, DGX Spark). Each one can be adjusted.
+- **Sample machines** to explore without your own hardware: build a desktop or workstation (pick the graphics card, its memory size and 1 or 2 cards), a gaming laptop (pick the laptop GPU), a Mac (pick the model, then a chip it really ships with and that chip's memory sizes), an office laptop, or a single-board / edge AI device (Raspberry Pi 4/5, Orange Pi 5 Plus, Jetson Nano, Orin Nano Super, Orin NX, AGX Orin, AGX Thor, DGX Spark).
 - **Light, dark or system theme**, keyboard and reduced-motion friendly.
 
 ![Where a model would live on a 16 GB GPU](docs/screenshots/detail-moe.png)

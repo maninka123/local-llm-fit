@@ -11,6 +11,7 @@ import { fmtBytes } from "../lib/units";
 import { canReachOllamaCom } from "../platform/bridge";
 import { Prov } from "./ui";
 import { safeSourceUrl } from "../catalog/sanitize";
+import { Select } from "./Select";
 
 const EXAMPLES = ["Qwen3.6 35B A3B", "gemma3", "Qwen/Qwen3-30B-A3B", "deepseek-r1:14b"];
 
@@ -289,17 +290,18 @@ export function VerifyForm({ draft, onPreview, onSave, onCancel, saveLabel = "Sa
           <span className="row" style={{ justifyContent: "space-between" }}>
             Architecture <Prov p={m.architecture.provenance} />
           </span>
-          <select
-            className="select"
+          <Select
+            label="Architecture"
             value={m.architecture.value ?? "unknown"}
-            onChange={(e) =>
-              setM({ ...m, architecture: { value: e.target.value === "unknown" ? null : (e.target.value as ArchitectureKind), provenance: e.target.value === "unknown" ? "unknown" : ("user_entered" as Provenance), source: "Entered by you" } })
+            onChange={(v) =>
+              setM({ ...m, architecture: { value: v === "unknown" ? null : (v as ArchitectureKind), provenance: v === "unknown" ? "unknown" : ("user_entered" as Provenance), source: "Entered by you" } })
             }
-          >
-            <option value="unknown">Unknown</option>
-            <option value="dense">Dense</option>
-            <option value="moe">Mixture of Experts</option>
-          </select>
+            options={[
+              { value: "unknown", label: "Unknown" },
+              { value: "dense", label: "Dense" },
+              { value: "moe", label: "Mixture of Experts" },
+            ]}
+          />
         </label>
         {numField("Total parameters (billions)", "totalParamsB")}
         {numField("Active parameters (billions)", "activeParamsB", m.architecture.value === "moe" ? "Needed for MoE estimates. Leave blank if unknown." : "Dense models: leave blank.")}

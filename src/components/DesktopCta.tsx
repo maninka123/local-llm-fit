@@ -31,8 +31,8 @@ export function DesktopCta() {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <button className="btn sm desktop-cta" onClick={() => setOpen(true)} data-tip="Detects your hardware automatically" data-tip-pos="below" data-tip-align="end">
-        <Download size={15} /> <span>Get the desktop app</span>
+      <button className="btn sm desktop-cta" onClick={() => setOpen(true)} aria-label="Get the desktop app" data-tip="Get the desktop app: it detects your hardware automatically" data-tip-pos="below" data-tip-align="end">
+        <Download size={15} /> <span>Desktop app</span>
       </button>
       {/* Rendered at page level: the sticky machine bar would otherwise trap the overlay. */}
       {open && createPortal(<DesktopCtaDialog onClose={() => setOpen(false)} />, document.body)}

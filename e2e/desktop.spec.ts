@@ -40,11 +40,11 @@ test("desktop: edit detected values, try a sample machine, switch back", async (
 
   await page.getByRole("button", { name: /My computer · (Live|Normal use)/ }).click();
   await page.getByRole("dialog").getByRole("radio", { name: /Sample machine/ }).click();
-  await page.getByRole("dialog").getByRole("radio", { name: /Workstation/ }).click();
+  await page.getByRole("dialog").getByRole("radio", { name: /Desktop \/ workstation/ }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Show this machine" }).click();
-  await expect(bar).toContainText("Sample: Workstation");
+  await expect(bar).toContainText("Sample: Desktop PC");
 
-  await page.getByRole("button", { name: /Sample: Workstation/ }).click();
+  await page.getByRole("button", { name: /Sample: Desktop PC/ }).click();
   await page.getByRole("dialog").getByRole("radio", { name: /My computer/ }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Use my computer" }).click();
   await expect(page.getByRole("button", { name: /My computer · (Live|Normal use)/ })).toBeVisible();
