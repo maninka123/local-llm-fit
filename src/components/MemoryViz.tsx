@@ -44,7 +44,7 @@ function SegBar({ segs, scale }: { segs: Seg[]; scale: number }) {
             >
               {wide && (
                 <span className="seg-label">
-                  {s.label}
+                  <span>{s.label}</span>
                   <small className="num">{fmtBytes(s.bytes)}</small>
                 </span>
               )}

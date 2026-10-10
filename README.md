@@ -4,7 +4,7 @@
 
 **[▶ Try the web demo](https://maninka123.github.io/local-llm-fit/)** (demo hardware; the desktop app reads your real machine)
 
-![Model detail with the memory placement view](docs/screenshots/detail-moe.png)
+![Your machine and what it can run](docs/screenshots/overview.png)
 
 ## Features
 
@@ -17,9 +17,35 @@
 - **Optional local benchmark** through Ollama (only when you click *Run Test*), comparing predicted and measured memory, TTFT and tok/s.
 - Quantization, context, concurrency and image controls; Compare up to 4 models; CSV/JSON import and export; dark and light themes; keyboard and reduced-motion support.
 
-| Overview | Explorer | Apple Silicon (unified memory) |
-| --- | --- | --- |
-| ![Overview](docs/screenshots/overview.png) | ![Explorer](docs/screenshots/explorer.png) | ![Unified memory](docs/screenshots/detail-unified.png) |
+## Screenshots
+
+**Can this model fit?** A plain-language verdict with confidence, total need and usable memory.
+
+![Verdict for a Mixture-of-Experts model](docs/screenshots/detail-verdict.png)
+
+**Where the model would live.** Weights, KV cache and buffers on the same scale as your VRAM and RAM, with planned offload and the active-per-token overlay.
+
+![Memory placement on a 16 GB GPU](docs/screenshots/detail-moe.png)
+
+**Apple Silicon.** Unified memory is one shared pool, never counted twice.
+
+![Unified memory placement](docs/screenshots/detail-unified.png)
+
+**What can I run?** Choose your inputs (text is always on) and see how the whole catalog fits.
+
+![What can I run](docs/screenshots/what-can-i-run.png)
+
+**Model Explorer.** Search and filter 430+ variants by fit, size, capability and more.
+
+![Model Explorer](docs/screenshots/explorer.png)
+
+**Inputs and outputs.** Verified per tag, with Ollama runtime support shown separately from the model card.
+
+![Capability evidence](docs/screenshots/capabilities.png)
+
+**Compare** up to four models on the same hardware.
+
+![Compare memory pressure](docs/screenshots/compare.png)
 
 ## Get the app
 
@@ -63,10 +89,6 @@ npm run catalog:refresh   # re-verify the catalog against ollama.com (metadata o
 ## Privacy
 
 No telemetry or accounts. Hardware details never leave your computer. Online lookups send only the model name you type (to ollama.com and huggingface.co). Benchmarks and downloads run only after you confirm.
-
-## Author
-
-**Pasindu Ranasinghe**
 
 ## License
 
