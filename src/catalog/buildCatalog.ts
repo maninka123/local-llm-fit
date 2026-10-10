@@ -1,4 +1,5 @@
 import type { ModelVariant } from "../domain/types";
+import { sanitizeModel } from "./validate";
 import { importSeedCsv, type ImportReport } from "./seedImporter";
 import { applyVerification, modelFromOllama, type OllamaVerification } from "./ollamaOfficial";
 import type { LibraryEntry } from "./ollamaLibrary";
@@ -56,6 +57,18 @@ export function buildCatalog(seedCsv: string, snapshot: Snapshot | null, live: R
     if (existing) models.set(id, applyVerification(existing, v));
     else if (v.artifacts.length && !v.cloudOnly) models.set(id, modelFromOllama({ name: v.family, description: v.summary, capabilities: [] }, v));
   }
-  for (const u of user) models.set(u.id, u);
+  for (const raw of user) {
+    // Saved records are checked again (older versions or imports may be malformed).
+    const u = sanitizeModel(raw);
+    if (!u) continue;
+    const existing = models.get(u.id);
+    // A saved copy must not hide a newer official verification of the same model.
+    if (existing?.lastVerified && (!u.lastVerified || u.lastVerified < existing.lastVerified)) {
+      if (u.origin !== "user") continue; // an older saved copy of an Ollama/Hugging Face record
+      models.set(u.id, { ...u, artifacts: existing.artifacts, arch: existing.arch ?? u.arch, lastVerified: existing.lastVerified, resolvedTag: existing.resolvedTag ?? u.resolvedTag });
+      continue;
+    }
+    models.set(u.id, u);
+  }
   return { models, report, snapshotDate: snapshot?.generatedAt ?? null, snapshotApplied: applied, snapshotAdded: added, families: snapshot?.families ?? {} };
 }

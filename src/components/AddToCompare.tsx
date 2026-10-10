@@ -3,7 +3,7 @@ import { Plus, Search } from "lucide-react";
 import { useStore } from "../state/store";
 import { quantFor, useMachine } from "../state/derived";
 import { estimate } from "../domain/estimator";
-import { BUCKETS, bucketOf, recommend } from "../domain/recommend";
+import { BUCKETS, bucketFor, recommend } from "../domain/recommend";
 import { fmtBytes, fmtParams } from "../lib/units";
 import { Avatar, SpeedLabel } from "./ui";
 import { BucketBadge } from "./SimilarModels";
@@ -42,7 +42,7 @@ export function AddToCompare({ big }: { big?: boolean }) {
       .filter((m) => !m.cloudOnly && !compare.includes(m.id))
       .map((m) => {
         const e = estimate(m, { ...settings, quant: quantFor(m, choice, per) }, machine);
-        return { m, e, b: bucketOf(e.classification), score: recommend(m, e, families[m.family]).score };
+        return { m, e, b: bucketFor(e), score: recommend(m, e, families[m.family]).score };
       })
       .sort((a, b) => order(a.b) - order(b.b) || b.score - a.score);
   }, [catalog, machine, settings, choice, per, families, compare, open]);

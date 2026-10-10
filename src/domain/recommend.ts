@@ -29,6 +29,14 @@ export const BUCKETS: BucketMeta[] = [
 
 export const bucketOf = (c: FitClass): Bucket => BUCKETS.find((b) => b.classes.includes(c))!.id;
 
+/** Fits fully on the GPU but replies under this many words per second: not "runs well". */
+export const SLOW_TOK_S = 5;
+/** The group for an estimate: as bucketOf, but very slow full-GPU fits count as "Runs, but slower". */
+export function bucketFor(e: Pick<Estimate, "classification" | "speed">): Bucket {
+  const b = bucketOf(e.classification);
+  return b === "runs_well" && e.speed && e.speed.range.mid < SLOW_TOK_S ? "runs_slower" : b;
+}
+
 /** Ollama.com popularity and recency for a family (from the bundled snapshot). */
 export interface FamilySignals {
   pulls?: number | null;

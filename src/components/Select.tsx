@@ -49,7 +49,7 @@ export function Select<T extends string | number>({
   }, [open]);
 
   useEffect(() => {
-    if (open) list.current?.querySelector<HTMLElement>(`[data-i="${active}"]`)?.scrollIntoView({ block: "nearest" });
+    if (open) scrollWithin(list.current, list.current?.querySelector<HTMLElement>(`[data-i="${active}"]`) ?? null);
   }, [open, active]);
 
   const choose = (i: number) => {
@@ -123,4 +123,12 @@ export function Select<T extends string | number>({
       )}
     </div>
   );
+}
+
+/** Scroll a list so `el` is visible, without scrolling the page or dialog around it. */
+export function scrollWithin(list: HTMLElement | null, el: HTMLElement | null) {
+  if (!list || !el) return;
+  const top = el.getBoundingClientRect().top - list.getBoundingClientRect().top + list.scrollTop;
+  if (top < list.scrollTop) list.scrollTop = top - 6;
+  else if (top + el.offsetHeight > list.scrollTop + list.clientHeight) list.scrollTop = top + el.offsetHeight - list.clientHeight + 6;
 }

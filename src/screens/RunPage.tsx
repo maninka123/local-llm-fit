@@ -11,7 +11,7 @@ import { Avatar, Switch, AnimatedBytes, Seg, SpeedLabel } from "../components/ui
 import { InputPicker, CapabilityStrip } from "../components/Capabilities";
 import { FORM_LABEL, FormIcon } from "../components/MachineBar";
 import { useExplorer } from "./Explorer";
-import { BUCKETS, bucketOf, recommend, type Bucket, type Recommendation } from "../domain/recommend";
+import { BUCKETS, bucketFor, recommend, type Bucket, type Recommendation } from "../domain/recommend";
 import { MachineSetupCard } from "../components/MachineSetup";
 import { BucketBadge } from "../components/SimilarModels";
 
@@ -114,7 +114,7 @@ export function RunPage() {
 
   const counts = useMemo(() => {
     const c = Object.fromEntries(BUCKETS.map((b) => [b.id, 0])) as Record<Bucket, number>;
-    for (const r of results) c[bucketOf(r.e.classification)]++;
+    for (const r of results) c[bucketFor(r.e)]++;
     return c;
   }, [results]);
 
@@ -123,7 +123,7 @@ export function RunPage() {
     const pick = (b: Bucket, n: number) => {
       const seen = new Set<string>();
       return results
-        .filter((r) => bucketOf(r.e.classification) === b)
+        .filter((r) => bucketFor(r.e) === b)
         .sort((a, c) => c.r.score - a.r.score)
         .filter((r) => (seen.has(r.m.family) ? false : (seen.add(r.m.family), true)))
         .slice(0, n);
@@ -430,7 +430,7 @@ function PickList({ title, items, empty, note }: { title: string; items: { m: Mo
             </div>
           </div>
           <div className="row" style={{ gap: 10 }}>
-            <BucketBadge bucket={bucketOf(e.classification)} />
+            <BucketBadge bucket={bucketFor(e)} />
             <SpeedLabel est={e} />
           </div>
           <CapabilityStrip caps={m.capabilities} />

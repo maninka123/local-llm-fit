@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Select } from "../components/Select";
 import { AlertTriangle, ArrowLeft, BadgeCheck, ChevronDown, Columns3, Download, ExternalLink, FlaskConical, Info, Layers, RefreshCw, ShieldAlert, Sparkles, OctagonAlert } from "lucide-react";
 import { useStore } from "../state/store";
-import { ageText, isStale, latestBenchmark, quantFor, useMachine } from "../state/derived";
+import { ageText, isStale, latestBenchmark, useMeasuredBenchmarks, quantFor, useMachine } from "../state/derived";
 import { estimate, publishedQuants, CLASS_META, type Estimate, type EstimatorSettings } from "../domain/estimator";
 import { QUANT_SELECTOR, quantInfo } from "../domain/quant";
 import { resolveInput } from "../domain/capabilities";
@@ -47,7 +47,7 @@ function Detail({ m }: { m: ModelVariant }) {
   const setModelQuant = useStore((s) => s.setModelQuant);
   const compare = useStore((s) => s.compare);
   const toggleCompare = useStore((s) => s.toggleCompare);
-  const benches = useStore((s) => s.benchmarks);
+  const benches = useMeasuredBenchmarks();
   const machine = useMachine();
   const [showActive, setShowActive] = useState(true);
   const [moeOpen, setMoeOpen] = useState(false);
@@ -57,6 +57,9 @@ function Detail({ m }: { m: ModelVariant }) {
   const est: Estimate | null = useMemo(() => (machine ? estimate(m, { ...settings, quant }, machine) : null), [m, settings, quant, machine]);
   const published = publishedQuants(m);
   const bench = latestBenchmark(benches, m);
+  const hw = useStore((s) => s.hardware);
+  const running = useStore((s) => s.ollamaState.running);
+  const loadedNow = !!m.installed && running.some((r) => r.name === m.installed!.name || r.digest === m.installed!.digest);
   const ctxMax = m.contextMax.value ?? m.arch?.contextLength ?? null;
   const imgStatus = resolveInput(m.capabilities, "image").status;
 
@@ -142,7 +145,7 @@ function Detail({ m }: { m: ModelVariant }) {
             )}
             <div className="row" style={{ marginTop: 14, gap: 22 }}>
               <Stat label="Total need" value={<AnimatedBytes bytes={est.totalNeed?.mid ?? null} />} sub={est.totalNeed ? fmtRange(est.totalNeed) : undefined} />
-              {machine.arch === "discrete" && <Stat label="Usable VRAM" value={<AnimatedBytes bytes={est.pools.vramUsable} />} sub={est.pools.mode === "live" ? "live" : "planning"} />}
+              {machine.arch === "discrete" && <Stat label="Usable VRAM" value={<AnimatedBytes bytes={est.pools.vramUsable} />} sub={est.pools.vramMode === "live" ? "live" : "planning"} />}
               {machine.arch === "unified" && <Stat label="GPU working set" value={<AnimatedBytes bytes={est.pools.unifiedGpuLimit} />} sub={machine.unifiedGpuLimitSource} />}
               <Stat label={machine.arch === "unified" ? "Usable unified" : "Usable RAM"} value={<AnimatedBytes bytes={est.pools.ramUsable} />} sub={est.pools.ramFree != null ? "live" : "planning"} />
               {est.classification !== "cannot_fit" && est.placement && est.placement.gpuFraction < 1 && est.placement.gpuFraction > 0 && (
@@ -169,8 +172,14 @@ function Detail({ m }: { m: ModelVariant }) {
             <MemoryViz est={est} machine={machine} showActive={showActive} />
           </section>
 
-          {est.warnings.length > 0 && (
+          {(est.warnings.length > 0 || loadedNow) && (
             <section className="warnings" aria-label="Warnings">
+              {loadedNow && hw?.mode === "native" && (
+                <div className="warning info">
+                  <Info size={16} color="var(--accent)" />
+                  <span>This model is loaded in Ollama right now, so its memory already counts as used. The estimate may look tighter than it really is; unload it (ollama stop) and rescan for a clean reading.</span>
+                </div>
+              )}
               {est.warnings.map((w, i) => (
                 <div key={i} className={`warning ${w.level}`}>
                   {w.level === "danger" ? <OctagonAlert size={16} color="var(--bad)" /> : w.level === "warn" ? <AlertTriangle size={16} color="var(--warn)" /> : <Info size={16} color="var(--accent)" />}
@@ -388,7 +397,7 @@ function Detail({ m }: { m: ModelVariant }) {
                     { value: "q4_0", label: "q4_0" },
                   ]}
                 />
-                <ReserveControls settings={settings} setSettings={setSettings} mode={est.pools.mode} />
+                <ReserveControls settings={settings} setSettings={setSettings} ramMode={est.pools.ramMode} vramMode={est.pools.vramMode} />
                 <label className="field">
                   Effective bits per weight (hypothetical sizes)
                   <input
@@ -459,38 +468,43 @@ function Fact({ label, value, prov, title }: { label: string; value: React.React
   );
 }
 
-export function ReserveControls({ settings, setSettings, mode }: { settings: EstimatorSettings; setSettings: (p: Partial<EstimatorSettings>) => void; mode: "live" | "planning" }) {
+export function ReserveControls({ settings, setSettings, ramMode, vramMode }: { settings: EstimatorSettings; setSettings: (p: Partial<EstimatorSettings>) => void; ramMode: "live" | "planning"; vramMode: "live" | "planning" | null }) {
   const r = settings.reserves;
   const upd = (p: Partial<typeof r>) => setSettings({ reserves: { ...r, ...p } });
-  return mode === "live" ? (
+  // Each pool shows the reserve that is actually applied to it (live margin or planning %).
+  return (
     <>
-      <label className="field">
-        <span className="row" style={{ justifyContent: "space-between" }}>
-          GPU safety margin <b className="num">{r.liveVramSafetyGiB} GiB</b>
-        </span>
-        <input type="range" min={0} max={4} step={0.25} value={r.liveVramSafetyGiB} onChange={(e) => upd({ liveVramSafetyGiB: +e.target.value })} />
-      </label>
-      <label className="field">
-        <span className="row" style={{ justifyContent: "space-between" }}>
-          RAM kept for OS &amp; apps <b className="num">{r.liveRamReserveGiB} GiB</b>
-        </span>
-        <input type="range" min={0} max={16} step={0.5} value={r.liveRamReserveGiB} onChange={(e) => upd({ liveRamReserveGiB: +e.target.value })} />
-      </label>
-    </>
-  ) : (
-    <>
-      <label className="field">
-        <span className="row" style={{ justifyContent: "space-between" }}>
-          VRAM reserve (planning) <b className="num">{r.planningVramReservePct}%</b>
-        </span>
-        <input type="range" min={0} max={40} step={1} value={r.planningVramReservePct} onChange={(e) => upd({ planningVramReservePct: +e.target.value })} />
-      </label>
-      <label className="field">
-        <span className="row" style={{ justifyContent: "space-between" }}>
-          RAM reserve (planning) <b className="num">{r.planningRamReservePct}%</b>
-        </span>
-        <input type="range" min={0} max={50} step={1} value={r.planningRamReservePct} onChange={(e) => upd({ planningRamReservePct: +e.target.value })} />
-      </label>
+      {vramMode === "live" && (
+        <label className="field">
+          <span className="row" style={{ justifyContent: "space-between" }}>
+            GPU safety margin <b className="num">{r.liveVramSafetyGiB} GiB</b>
+          </span>
+          <input type="range" min={0} max={4} step={0.25} value={r.liveVramSafetyGiB} onChange={(e) => upd({ liveVramSafetyGiB: +e.target.value })} />
+        </label>
+      )}
+      {vramMode === "planning" && (
+        <label className="field">
+          <span className="row" style={{ justifyContent: "space-between" }}>
+            VRAM reserve (planning) <b className="num">{r.planningVramReservePct}%</b>
+          </span>
+          <input type="range" min={0} max={40} step={1} value={r.planningVramReservePct} onChange={(e) => upd({ planningVramReservePct: +e.target.value })} />
+        </label>
+      )}
+      {ramMode === "live" ? (
+        <label className="field">
+          <span className="row" style={{ justifyContent: "space-between" }}>
+            RAM kept for OS &amp; apps <b className="num">{r.liveRamReserveGiB} GiB</b>
+          </span>
+          <input type="range" min={0} max={16} step={0.5} value={r.liveRamReserveGiB} onChange={(e) => upd({ liveRamReserveGiB: +e.target.value })} />
+        </label>
+      ) : (
+        <label className="field">
+          <span className="row" style={{ justifyContent: "space-between" }}>
+            RAM reserve (planning) <b className="num">{r.planningRamReservePct}%</b>
+          </span>
+          <input type="range" min={0} max={50} step={1} value={r.planningRamReservePct} onChange={(e) => upd({ planningRamReservePct: +e.target.value })} />
+        </label>
+      )}
     </>
   );
 }

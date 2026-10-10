@@ -124,7 +124,7 @@ export function MemoryViz({ est, machine, showActive }: { est: Estimate; machine
   if (isDiscrete) {
     const vReserve = p.vramPhysical != null && p.vramUsable != null ? Math.max(0, p.vramPhysical - p.vramUsable) : 0;
     const vSegs: Seg[] = [
-      { key: "res", cls: "reserve", bytes: vReserve, label: "In use / reserved", tip: p.mode === "live" ? "Already used by display, other apps, plus safety margin (live)." : "Planning reserve for display and driver." },
+      { key: "res", cls: "reserve", bytes: vReserve, label: "In use / reserved", tip: p.vramMode === "live" ? "Already used by display, other apps, plus safety margin (live)." : "Planning reserve for display and driver." },
       ...(pl
         ? [
             { key: "gw", cls: "weights", bytes: pl.gpuWeights, label: "Weights on GPU", tip: "Planned placement (simulation)." },

@@ -113,7 +113,11 @@ export interface MachineProfile {
 
 export interface Pools {
   arch: MemoryArchitecture;
+  /** "live" only when every pool used comes from a live free-memory reading. */
   mode: "live" | "planning";
+  /** Basis of each pool separately (a live RAM reading can sit next to a planned VRAM figure). */
+  ramMode: "live" | "planning";
+  vramMode: "live" | "planning" | null;
   vramPhysical: number | null;
   vramFree: number | null;
   vramUsable: number | null;
@@ -213,7 +217,11 @@ export function guessSpeed(
   machine: MachineProfile,
 ): SpeedGuess | null {
   if (!placement || cls === "cannot_fit" || cls === "unknown") return null;
-  const perToken = activeBytes + kvPerTokenBytes * Math.min(settings.contextTokens, 4096);
+  // Each word re-reads the conversation so far (KV cache), so speed falls as a chat grows.
+  // Slow end: the whole context window is filled. Typical: ~4K tokens in. Fast end: a fresh chat.
+  const filled = [settings.contextTokens, Math.min(settings.contextTokens, 4096), Math.min(settings.contextTokens, 1024)];
+  const perTokenAt = (i: number) => activeBytes + kvPerTokenBytes * filled[i];
+  const perToken = perTokenAt(1);
   const cpuOnly = machine.arch === "cpu_only" || machine.arch === "integrated_shared" || machine.gpuBackendSupported === false;
   const f = cpuOnly ? 0 : placement.gpuFraction;
   const bw = machine.gpuBandwidthGBs ?? null;
@@ -226,8 +234,8 @@ export function guessSpeed(
   const cpuBw = unified && bw ? [bw * 0.35, bw * 0.45, bw * 0.55] : rb ? [rb * 0.45, rb * 0.58, rb * 0.7] : [45 * 0.45, 65 * 0.58, 90 * 0.7];
   const overhead = f >= 0.999 ? 0.0015 : f <= 0.001 ? 0.004 : 0.006;
   const at = (i: number) => {
-    const gpuTime = f > 0 && bw ? (f * perToken) / (bw * gpuEff[i] * 1e9) : 0;
-    const cpuTime = ((1 - f) * perToken) / (cpuBw[i] * 1e9);
+    const gpuTime = f > 0 && bw ? (f * perTokenAt(i)) / (bw * gpuEff[i] * 1e9) : 0;
+    const cpuTime = ((1 - f) * perTokenAt(i)) / (cpuBw[i] * 1e9);
     return 1 / (gpuTime + cpuTime + overhead);
   };
   const gpuT = f > 0 && bw ? (f * perToken) / (bw * gpuEff[1] * 1e9) : 0;
@@ -241,14 +249,15 @@ const CACHE_BYTES: Record<KvCacheType, number> = { f16: 2, q8_0: 34 / 32, q4_0: 
 const OS_FLOOR = 1.5 * GiB;
 
 export function pickArtifact(model: ModelVariant, quant: QuantId): Artifact | null {
-  const matches = model.artifacts.filter((a) => a.quant === quant);
+  // A file without a known weight size (0 bytes) is not a usable published size.
+  const matches = model.artifacts.filter((a) => a.quant === quant && a.weightBytes > 0);
   if (!matches.length) return null;
   return matches.find((a) => a.isDefaultTag) ?? [...matches].sort((a, b) => (b.checkedAt ?? "").localeCompare(a.checkedAt ?? ""))[0];
 }
 
 /** Quantizations that actually have a published artifact for this model. */
 export function publishedQuants(model: ModelVariant): QuantId[] {
-  return [...new Set(model.artifacts.map((a) => a.quant))];
+  return [...new Set(model.artifacts.filter((a) => a.weightBytes > 0).map((a) => a.quant))];
 }
 
 export function isMoE(model: ModelVariant): boolean {
@@ -409,7 +418,7 @@ export function computePools(machine: MachineProfile, settings: EstimatorSetting
   const planning = settings.memoryBasis === "planning";
   if (planning) notes.push("Planning for a fresh start: other apps assumed closed; fixed reserves kept for the OS.");
   const ramPhysical = machine.ramTotal;
-  const ramFree = planning ? null : machine.ramFree;
+  const ramFree = planning || machine.ramFree == null ? null : ramPhysical != null ? Math.min(machine.ramFree, ramPhysical) : machine.ramFree;
   let ramUsable: number | null = null;
   let mode: "live" | "planning" = "planning";
   if (ramFree != null) {
@@ -429,6 +438,8 @@ export function computePools(machine: MachineProfile, settings: EstimatorSetting
   const base: Pools = {
     arch: machine.arch,
     mode,
+    ramMode: mode,
+    vramMode: null,
     vramPhysical: null,
     vramFree: null,
     vramUsable: null,
@@ -445,15 +456,17 @@ export function computePools(machine: MachineProfile, settings: EstimatorSetting
     if (!machine.combineGpus && machine.gpus.length > 1) notes.push("Multiple GPUs selected but not combined: only the first GPU's memory is counted.");
     const sum = (xs: (number | null)[]) => (xs.some((x) => x == null) ? null : xs.reduce<number>((a, x) => a + (x as number), 0));
     const physical = sum(used.map((g) => g.vramTotal));
-    const free = planning ? null : sum(used.map((g) => g.vramFree));
+    const free = planning ? null : sum(used.map((g) => (g.vramFree != null && g.vramTotal != null ? Math.min(g.vramFree, g.vramTotal) : g.vramFree)));
     base.vramPhysical = physical;
     base.vramFree = free;
     if (free != null) {
       base.vramUsable = Math.max(0, free - r.liveVramSafetyGiB * GiB * used.length);
+      base.vramMode = "live";
       notes.push(`VRAM: measured ${fmtBytes(free)} free − ${r.liveVramSafetyGiB} GiB safety margin`);
     } else if (physical != null) {
       base.vramUsable = physical * (1 - r.planningVramReservePct / 100);
       base.mode = "planning";
+      base.vramMode = "planning";
       notes.push(`VRAM (planning mode): ${fmtBytes(physical)} × (1 − ${r.planningVramReservePct}% reserve)`);
     } else {
       notes.push("VRAM unknown: enter it in Your Machine to get a GPU estimate.");
@@ -545,7 +558,10 @@ function solve(n: Needs, pools: Pools, machine: MachineProfile, moe: boolean): S
   if (fullNeed <= V) {
     const placement: Placement = { gpuWeights: n.W, cpuWeights: 0, gpuKv: n.KV, cpuKv: 0, gpuOther: fixed, hostOther: n.host, gpuFraction: 1 };
     const memoryMargin = ramUsable - n.host;
-    if (n.host > ramUsable) return { cls: "memory_constrained", placement, gpuMargin, memoryMargin };
+    if (n.host > ramUsable) {
+      if (ramCeiling != null && n.host <= ramCeiling) return { cls: "memory_constrained", placement, gpuMargin, memoryMargin };
+      return { cls: "cannot_fit", placement, gpuMargin, memoryMargin };
+    }
     return { cls: "full_gpu", placement, gpuMargin, memoryMargin };
   }
   if (V <= fixed) return cpuOnly();
@@ -694,6 +710,8 @@ export function estimate(model: ModelVariant, settings: EstimatorSettings, machi
   const headroom = classification === "full_gpu" ? gpuMargin : memoryMargin;
   if (spread.size === 1 && confidence === "low" && headroom != null && capRef && headroom / capRef > 0.3 && classification !== "promising_moe") confidence = "medium";
   if (classification === "unknown") confidence = "low";
+  // GPU results on a GPU whose Ollama support isn't confirmed (AMD, Intel, unrecognised) are never "high".
+  if (machine.arch === "discrete" && machine.gpuBackendSupported == null && (placement?.gpuFraction ?? 0) > 0 && confidence === "high") confidence = "medium";
 
   // ---- responsiveness (qualitative only — no tok/s claims)
   const speedBytes = act.active?.mid ?? weights?.mid ?? null;
@@ -726,7 +744,7 @@ export function estimate(model: ModelVariant, settings: EstimatorSettings, machi
     equations.push({
       label: "Speed guess",
       value: fmtSpeed(speed.range),
-      detail: `≈ ${speed.gbPerToken.toFixed(2)} GB read per token${speed.gpuBandwidthGBs ? ` · GPU ${speed.gpuBandwidthGBs} GB/s` : ""}${speed.cpuShare > 0.001 ? ` · ${Math.round(speed.cpuShare * 100)}% from RAM` : ""} · 50–80% of peak bandwidth`,
+      detail: `≈ ${speed.gbPerToken.toFixed(2)} GB read per token${speed.gpuBandwidthGBs ? ` · GPU ${speed.gpuBandwidthGBs} GB/s` : ""}${speed.cpuShare > 0.001 ? ` · ${Math.round(speed.cpuShare * 100)}% from RAM` : ""} · 50–80% of peak bandwidth · slow end = full context, fast end = new chat`,
       provenance: "heuristic",
     });
   }
@@ -777,7 +795,7 @@ export function estimate(model: ModelVariant, settings: EstimatorSettings, machi
   equations.push({ label: "Host runtime", value: fmtRange(hostRuntime), detail: "Runner process, tokenizer, staging buffers", provenance: "heuristic" });
   if (totalNeed) equations.push({ label: "Total need", value: fmtRange(totalNeed), detail: "W + KV + scratch + images + backend + host", provenance: "derived" });
   for (const n of pools.notes) assumptions.push(n);
-  if (pools.vramUsable != null) equations.push({ label: "Usable VRAM (V)", value: fmtBytes(pools.vramUsable), detail: pools.mode === "live" ? "Live free VRAM − safety" : "Planning reserve", provenance: pools.mode === "live" ? "measured" : "setting" });
+  if (pools.vramUsable != null) equations.push({ label: "Usable VRAM (V)", value: fmtBytes(pools.vramUsable), detail: pools.vramMode === "live" ? "Live free VRAM − safety" : "Planning reserve", provenance: pools.mode === "live" ? "measured" : "setting" });
   if (machine.arch === "unified" && pools.unifiedGpuLimit != null) equations.push({ label: "GPU working-set limit", value: fmtBytes(pools.unifiedGpuLimit), detail: machine.unifiedGpuLimitSource, provenance: machine.unifiedGpuLimitSource === "detected" ? "measured" : "setting" });
   if (pools.ramUsable != null) equations.push({ label: machine.arch === "unified" ? "Usable unified memory (U)" : "Usable RAM (R)", value: fmtBytes(pools.ramUsable), detail: pools.ramFree != null ? "Live available − reserve" : "Planning reserve", provenance: pools.ramFree != null ? "measured" : "setting" });
 

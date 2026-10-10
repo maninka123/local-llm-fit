@@ -33,6 +33,14 @@ export function App() {
     const s = useStore.getState();
     void s.rescanHardware();
     void s.rebuildCatalog().then(() => s.refreshOllama());
+    // "Live" memory: re-read it when you come back to the desktop app (at most every 20 s).
+    const onFocus = () => {
+      const st = useStore.getState();
+      if (st.hardware?.mode !== "native" || st.hardwareStatus === "probing") return;
+      if (Date.now() - Date.parse(st.hardware.detectedAt) > 20_000) void st.rescanHardware();
+    };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
   }, []);
 
   useEffect(() => {

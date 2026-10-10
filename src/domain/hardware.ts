@@ -22,7 +22,10 @@ export function defaultGpuSelection(report: HardwareReport): string[] {
 
 export function gpuBackendSupport(g: GpuDevice | undefined): boolean | null {
   if (!g) return null;
-  if (g.vendor === "nvidia" || g.vendor === "apple") return true;
+  if (g.vendor === "apple") return true;
+  // NVIDIA: current Ollama needs compute capability 5.0+ (GTX 900 series and newer). Recognised
+  // modern cards are supported; older or unrecognised ones aren't assumed.
+  if (g.vendor === "nvidia") return /rtx|titan|gtx\s*(9[5-8]\d|1[0-6]\d\d)|tesla\s*[ptv]|\b[ahlb]\d{2,3}\b|quadro\s*(rtx|[pt]\d)|jetson|gb10|orin|thor/i.test(g.name) ? true : null;
   if (g.kind === "virtual" || g.vendor === "microsoft") return false;
   return null; // AMD (ROCm/Vulkan support varies by model), Intel, others: not assumed
 }
@@ -37,7 +40,9 @@ export function effectiveArchitecture(report: HardwareReport, o: HardwareOverrid
 export function buildMachineProfile(report: HardwareReport, o: HardwareOverrides): MachineProfile {
   const arch = effectiveArchitecture(report, o);
   const ramTotal = o.ramTotalGiB != null ? o.ramTotalGiB * GiB : report.memory.totalBytes.value;
-  const ramFree = o.ramFreeGiB != null ? o.ramFreeGiB * GiB : report.memory.availableBytes.value;
+  const ramFreeRaw = o.ramFreeGiB != null ? o.ramFreeGiB * GiB : report.memory.availableBytes.value;
+  // Free memory can never exceed the total (e.g. after lowering the total in an override).
+  const ramFree = ramFreeRaw != null && ramTotal != null ? Math.min(ramFreeRaw, ramTotal) : ramFreeRaw;
 
   let gpus: MachineGpu[] = [];
   let backend: boolean | null = null;

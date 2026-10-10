@@ -9,6 +9,8 @@ import type { Field, FormFactor, MemoryArchitecture, ModelVariant } from "../dom
 import { fmtBytes } from "../lib/units";
 import { toCsv } from "../lib/csv";
 import { importSeedCsv } from "../catalog/seedImporter";
+import { sanitizeModel } from "../catalog/validate";
+import type { BenchmarkRecord } from "../domain/types";
 import { verifyOllamaVariant } from "../catalog/ollamaOfficial";
 import { modalityLabel } from "../domain/capabilities";
 import { canReachOllamaCom, exportFile, isTauri } from "../platform/bridge";
@@ -62,7 +64,8 @@ export function Settings() {
   const exportCatalog = async (kind: "json" | "csv") => {
     const models = [...s.catalog.values()];
     if (kind === "json") {
-      const payload = { app: "model-fit-explorer", schema: 1, exportedAt: new Date().toISOString(), userModels: s.userModels, liveVerifications: s.liveVerifications, benchmarks: s.benchmarks };
+      // Everything needed to restore your data with Import.
+      const payload = { app: "model-fit-explorer", schema: 2, exportedAt: new Date().toISOString(), userModels: s.userModels, liveVerifications: s.liveVerifications, benchmarks: s.benchmarks, capabilityEvidence: s.capabilityEvidence };
       const p = await exportFile("model-fit-explorer-catalog.json", JSON.stringify(payload, null, 2), "application/json");
       s.showToast(`Saved ${p}`, "good");
     } else {
@@ -101,12 +104,26 @@ export function Settings() {
     try {
       if (f.name.endsWith(".json")) {
         const j = JSON.parse(text);
-        const list: ModelVariant[] = Array.isArray(j) ? j : j.userModels ?? [];
-        const valid = list.filter((m) => m && typeof m.id === "string" && typeof m.displayName === "string" && m.totalParamsB && m.capabilities?.inputs);
-        valid.forEach((m) => s.addUserModel({ ...m, origin: m.origin ?? "user" }));
-        if (j.liveVerifications) for (const v of Object.values(j.liveVerifications)) s.saveVerification(v as never);
-        s.showToast(`Imported ${valid.length} model(s)${list.length - valid.length ? `, skipped ${list.length - valid.length} invalid` : ""}`, valid.length ? "good" : "warn");
+        const list: unknown[] = Array.isArray(j) ? j : Array.isArray(j.userModels) ? j.userModels : [];
+        // Every record is checked and repaired; ones that can't be are skipped.
+        const valid = list.map(sanitizeModel).filter((m): m is ModelVariant => !!m);
+        valid.forEach((m) => s.addUserModel(m));
+        if (j.liveVerifications && typeof j.liveVerifications === "object")
+          for (const v of Object.values(j.liveVerifications)) if (v && typeof v === "object" && typeof (v as { family?: unknown }).family === "string" && Array.isArray((v as { artifacts?: unknown }).artifacts)) s.saveVerification(v as never);
+        // Benchmarks and capability notes from an export come back too.
+        const benches: BenchmarkRecord[] = Array.isArray(j.benchmarks) ? j.benchmarks.filter((b: BenchmarkRecord) => b && typeof b.id === "string" && typeof b.model === "string" && typeof b.createdAt === "string") : [];
+        if (benches.length) {
+          const have = new Set(useStore.getState().benchmarks.map((b) => b.id));
+          useStore.setState({ benchmarks: [...useStore.getState().benchmarks, ...benches.filter((b) => !have.has(b.id))].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 200) });
+        }
+        if (j.capabilityEvidence && typeof j.capabilityEvidence === "object" && !Array.isArray(j.capabilityEvidence)) {
+          useStore.setState({ capabilityEvidence: { ...useStore.getState().capabilityEvidence, ...j.capabilityEvidence } });
+          void s.rebuildCatalog();
+        }
+        s.showToast(`Imported ${valid.length} model(s)${benches.length ? `, ${benches.length} benchmark(s)` : ""}${list.length - valid.length ? `, skipped ${list.length - valid.length} invalid` : ""}`, valid.length || benches.length ? "good" : "warn");
       } else {
+        if (/^id,display_name,origin,resolved_tag/.test(text.trim()))
+          throw new Error("this is a CSV export, which is for spreadsheets. To restore your data, import the JSON export instead.");
         const r = importSeedCsv(text, f.name);
         r.models.forEach((m) => s.addUserModel({ ...m, origin: "user", id: m.id, notes: [...m.notes, `Imported from ${f.name}`] }));
         s.showToast(`CSV: ${r.report.imported} imported, ${r.report.duplicates} duplicates, ${r.report.issues.filter((i) => i.level === "error").length} errors`, r.report.imported ? "good" : "warn");
@@ -331,8 +348,8 @@ export function Settings() {
             </button>
           </div>
           <div className="stack">
-            <ReserveControls settings={s.settings} setSettings={s.setSettings} mode="live" />
-            <ReserveControls settings={s.settings} setSettings={s.setSettings} mode="planning" />
+            <ReserveControls settings={s.settings} setSettings={s.setSettings} ramMode="live" vramMode="live" />
+            <ReserveControls settings={s.settings} setSettings={s.setSettings} ramMode="planning" vramMode="planning" />
           </div>
         </section>
         <section className="card">
@@ -410,7 +427,8 @@ export function Settings() {
                 return (
                   <tr key={t.name}>
                     <td>
-                      <a href={`#/model/${encodeURIComponent(t.name.toLowerCase().replace(/:latest$/, ""))}`} className="mono">
+                      {/* Link to the record the installed model was actually filed under. */}
+                      <a href={`#/model/${encodeURIComponent(s.catalog.has(t.name.toLowerCase()) ? t.name.toLowerCase() : t.name.toLowerCase().replace(/:latest$/, ""))}`} className="mono">
                         {t.name}
                       </a>
                     </td>
@@ -446,10 +464,10 @@ export function Settings() {
               </button>
             )}
             <button className="btn" onClick={() => void exportCatalog("json")}>
-              <Download size={15} /> Export JSON
+              <Download size={15} /> Export backup (JSON)
             </button>
-            <button className="btn" onClick={() => void exportCatalog("csv")}>
-              <Download size={15} /> Export CSV
+            <button className="btn" onClick={() => void exportCatalog("csv")} data-tip="A spreadsheet of the whole catalog. To restore your data later, use the JSON backup.">
+              <Download size={15} /> Export spreadsheet (CSV)
             </button>
             <button className="btn" onClick={() => fileRef.current?.click()}>
               <FileUp size={15} /> Import CSV/JSON
@@ -543,9 +561,10 @@ export function Settings() {
         </ul>
         <div className="row" style={{ marginTop: 12 }}>
           <button className="btn danger sm" onClick={() => {
-            if (confirm("Delete saved benchmarks, user models and verifications from this device?")) {
-              useStore.setState({ benchmarks: [], userModels: [], liveVerifications: {}, capabilityEvidence: {} });
-              void s.rebuildCatalog();
+            if (confirm("Delete everything this app saved on this device? This removes your models, benchmarks, verifications, your computer's answers, samples and settings.")) {
+              // Remove the saved copy and start fresh with defaults.
+              useStore.persist.clearStorage();
+              location.reload();
             }
           }}>
             Delete all local data

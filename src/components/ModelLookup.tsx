@@ -156,6 +156,12 @@ export function ModelLookup({ onDraft }: { onDraft: (m: ModelVariant) => void })
                   {e.description}
                 </p>
                 <div className="row" style={{ gap: 6 }}>
+                  {/* The exact tag you pasted comes first, so that tag is the one checked. */}
+                  {parsed?.kind === "ollama_url" && parsed.tag && e.name === parsed.family && !e.sizes.includes(parsed.tag) && (
+                    <button type="button" className="btn sm primary" onClick={() => void pickOllama(e, parsed.tag!)} disabled={!!busy}>
+                      {parsed.tag}
+                    </button>
+                  )}
                   {(e.sizes.length ? e.sizes : ["latest"]).map((s) => (
                     <button key={s} type="button" className="btn sm" onClick={() => void pickOllama(e, s)} disabled={!!busy}>
                       {s}
@@ -228,8 +234,10 @@ function applyEdits(m: ModelVariant, draft: ModelVariant, caps: Caps3): ModelVar
   const c = JSON.parse(JSON.stringify(m.capabilities)) as ModelVariant["capabilities"];
   if (!c.inputs.text.evidence.length) c.inputs.text = addEvidence(c.inputs.text, { status: "verified_supported", scope: "user", source: "Confirmed by you", checkedAt: now });
   (Object.keys(caps) as (keyof Caps3)[]).forEach((k) => {
-    if (caps[k] !== resolveInput(draft.capabilities, k).status && caps[k] !== "unknown")
-      c.inputs[k] = addEvidence(c.inputs[k], { status: caps[k], scope: "user", source: "Confirmed by you", checkedAt: now });
+    // "Unknown" withdraws your own earlier answer; other choices replace it.
+    const withoutMine = { evidence: c.inputs[k].evidence.filter((e) => e.scope !== "user") };
+    if (caps[k] === "unknown") c.inputs[k] = withoutMine;
+    else if (caps[k] !== resolveInput(draft.capabilities, k).status) c.inputs[k] = addEvidence(withoutMine, { status: caps[k], scope: "user", source: "Confirmed by you", checkedAt: now });
   });
   return { ...m, capabilities: c };
 }
@@ -260,9 +268,17 @@ export function VerifyForm({ draft, onPreview, onSave, onCancel, saveLabel = "Sa
         min="0"
         placeholder="Unknown"
         value={m[key].value ?? ""}
-        onChange={(e) => setM({ ...m, [key]: { value: e.target.value === "" ? null : +e.target.value, provenance: e.target.value === "" ? "unknown" : "user_entered", source: "Entered by you" } })}
+        onChange={(e) => {
+          // Only positive sizes count; anything else means "unknown".
+          const v = e.target.value === "" || !(+e.target.value > 0) ? null : +e.target.value;
+          setM({ ...m, [key]: { value: v, provenance: v == null ? "unknown" : "user_entered", source: "Entered by you" } });
+        }}
       />
-      {hint && <span className="field-hint">{hint}</span>}
+      {key === "activeParamsB" && m.activeParamsB.value != null && m.totalParamsB.value != null && m.activeParamsB.value > m.totalParamsB.value ? (
+        <span className="field-hint" style={{ color: "var(--bad)" }}>Active parameters can't be more than the total.</span>
+      ) : (
+        hint && <span className="field-hint">{hint}</span>
+      )}
     </label>
   );
 
@@ -320,6 +336,15 @@ export function VerifyForm({ draft, onPreview, onSave, onCancel, saveLabel = "Sa
               </button>
             ))}
           </div>
+          {(() => {
+            // Official sources outrank your answer: say so instead of silently ignoring it.
+            const r = resolveInput(edited.capabilities, k);
+            return !r.userEntered && caps[k] !== "unknown" && r.status !== caps[k] && r.status !== "unknown" ? (
+              <span className="field-hint" style={{ width: "100%" }}>
+                Official data says {r.status === "verified_supported" ? "supported" : r.status === "verified_unsupported" ? "not supported" : "likely supported"}; that is what the app uses.
+              </span>
+            ) : null;
+          })()}
         </div>
       ))}
       {ambiguous && (
@@ -335,7 +360,7 @@ export function VerifyForm({ draft, onPreview, onSave, onCancel, saveLabel = "Sa
         <button
           className="btn primary"
           type="button"
-          disabled={ambiguous && !confirmed}
+          disabled={(ambiguous && !confirmed) || (m.activeParamsB.value != null && m.totalParamsB.value != null && m.activeParamsB.value > m.totalParamsB.value)}
           onClick={() => onSave({ ...edited, notes: [...edited.notes, `Added on ${new Date().toISOString().slice(0, 10)} after user confirmation.`] })}
         >
           {saveLabel}

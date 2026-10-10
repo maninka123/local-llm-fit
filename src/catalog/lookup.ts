@@ -2,6 +2,7 @@ import type { LibraryEntry } from "./ollamaLibrary";
 import { searchOllama } from "./ollamaOfficial";
 import { searchHf, type HfSearchHit } from "./huggingface";
 import { safeModelName } from "./sanitize";
+import { canReachOllamaCom } from "../platform/bridge";
 
 // Arbitrary model lookup. Only the user's search terms leave the machine — never hardware data.
 
@@ -50,7 +51,8 @@ export async function searchCandidates(q: LookupQuery): Promise<LookupCandidates
   const ollamaTerm = q.kind === "text" ? q.text.split(" ")[0] : text;
   const [o, h] = await Promise.allSettled([
     q.kind === "hf_id" ? Promise.resolve([] as LibraryEntry[]) : searchOllama(ollamaTerm),
-    q.kind === "ollama_url" ? Promise.resolve([] as HfSearchHit[]) : searchHf(q.kind === "hf_id" ? q.id : text),
+    // Ollama-style queries skip Hugging Face, except where ollama.com can't be reached (the browser).
+    q.kind === "ollama_url" && canReachOllamaCom() ? Promise.resolve([] as HfSearchHit[]) : searchHf(q.kind === "hf_id" ? q.id : text),
   ]);
   if (o.status === "rejected") errors.push(`Ollama search failed: ${(o.reason as Error).message}`);
   if (h.status === "rejected") errors.push(`Hugging Face search failed: ${(h.reason as Error).message}`);

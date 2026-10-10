@@ -133,21 +133,35 @@ export function IsoViz({ est, machine }: { est: Estimate; machine: MachineProfil
   const buf = est.scratch.mid + est.visionActivations.mid + est.backend.mid;
   const host = est.hostRuntime.mid;
 
-  const unit = chooseUnit(Math.max(W + KV + buf + host, p.vramPhysical ?? 0, p.ramPhysical ?? 0));
+  // Block size comes from this machine's memory, so the VRAM/RAM boxes keep their size as the
+  // model grows (only when the machine's memory is unknown does the model set the scale).
+  const machineBytes = Math.max(p.vramPhysical ?? 0, p.ramPhysical ?? 0);
+  const unit = chooseUnit(machineBytes > 0 ? machineBytes : W + KV + buf + host);
   const n = (b: number) => (b > 0 ? Math.max(1, Math.round(b / unit)) : 0);
 
   // ---- model cube (weights only: the "model")
-  const modelBlocksCount = n(W - vision) + n(vision);
+  // A model many times larger than the machine is drawn up to a readable size at the same
+  // scale; the rest is stated in the caption.
+  const MAX_MODEL_BLOCKS = 216;
+  const fullModelBlocks = n(W - vision) + n(vision);
+  const modelCapped = fullModelBlocks > MAX_MODEL_BLOCKS;
+  const k = modelCapped ? MAX_MODEL_BLOCKS / fullModelBlocks : 1;
+  const visionShown = n(vision) ? Math.max(1, Math.round(n(vision) * k)) : 0;
+  const weightsShown = modelCapped ? MAX_MODEL_BLOCKS - visionShown : n(W - vision);
+  const modelBlocksCount = weightsShown + visionShown;
+  const hiddenBytes = modelCapped ? W - modelBlocksCount * unit : 0;
   const cubeSide = Math.max(2, Math.ceil(Math.cbrt(modelBlocksCount)));
   const modelBlocks = stack(
     [
-      ["w", n(W - vision)],
-      ["v", n(vision)],
+      ["w", weightsShown],
+      ["v", visionShown],
     ],
     cubeSide,
   );
   const weightKeys = modelBlocks.filter((b) => b.kind === "w").map((b) => b.key);
-  const activeN = est.active ? Math.min(weightKeys.length, Math.max(1, Math.round(est.active.mid / unit))) : 0;
+  const activeN = est.active
+    ? Math.min(weightKeys.length, Math.max(1, Math.round(modelCapped ? (weightKeys.length * est.active.mid) / Math.max(1, W - vision) : est.active.mid / unit)))
+    : 0;
   const dense = !est.isMoE;
 
   const [tick, setTick] = useState(0);
@@ -303,6 +317,7 @@ export function IsoViz({ est, machine }: { est: Estimate; machine: MachineProfil
           <ModelCube blocks={modelBlocks} activeKeys={activeKeys} label={`Model weights ${fmtBytes(W)}`} />
           <div className="iso-sub num">
             <b>{fmtBytes(W)}</b> of weights
+            {modelCapped && <span className="muted"> · {fmtBytes(hiddenBytes)} more not drawn</span>}
             {est.active && !dense && (
               <>
                 {" "}

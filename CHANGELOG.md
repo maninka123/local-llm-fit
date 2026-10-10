@@ -2,6 +2,17 @@
 
 Short, user-facing notes. The section for each version is shown in the app's update window.
 
+## 1.1.0
+- More accurate sizes: 55 catalog files in Ollama's newer format showed 0 bytes; they now have their real sizes
+- Speed guesses now slow down for long conversations, and very slow full-GPU fits move to "Runs, but slower"
+- GPUs whose Ollama support isn't confirmed (AMD, Intel, older NVIDIA) no longer get "high confidence"
+- Measured speeds only show for the same model file, and not while a sample machine is shown
+- Download now fetches the exact file the estimate describes
+- Graphics card lists show every card with its memory sizes and speed, in samples and in My computer
+- Playground: memory boxes keep their size as the model grows
+- Safer imports, a full JSON backup that restores everything, and exports that never overwrite older files
+- Many smaller fixes: free memory capped at total, Hugging Face split files counted once, stable dialog focus, keyboard fixes
+
 ## 1.0.19
 - Build your sample: desktop/workstation (graphics card, memory size, 1 or 2 cards), gaming laptop (laptop GPU), Mac (model, chip and memory), office laptop or board
 - Dropdowns now match the app's light and dark theme

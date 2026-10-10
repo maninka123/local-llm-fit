@@ -13,7 +13,10 @@ import { ModelLookup, VerifyForm } from "./ModelLookup";
 function Compatibility({ m }: { m: ModelVariant }) {
   const machine = useMachine();
   const settings = useStore((s) => s.settings);
-  const est = useMemo(() => (machine ? estimate(m, { ...settings, quant: quantFor(m, "AUTO", {}) }, machine) : null), [m, machine, settings]);
+  const choice = useStore((s) => s.quantChoice);
+  const per = useStore((s) => s.perModelQuant);
+  // Same quantization as the model's own page, so saving it doesn't change the verdict.
+  const est = useMemo(() => (machine ? estimate(m, { ...settings, quant: quantFor(m, choice, per) }, machine) : null), [m, machine, settings, choice, per]);
   if (!est || !machine) return null;
   const p = est.pools;
   const cap = p.arch === "discrete" ? p.vramUsable : p.arch === "unified" ? Math.min(p.unifiedGpuLimit ?? Infinity, p.ramUsable ?? Infinity) : p.ramUsable;

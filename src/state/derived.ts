@@ -28,9 +28,25 @@ export function useEstimate(m: ModelVariant | undefined, quantOverride?: QuantId
   }, [m, machine, settings, choice, per, quantOverride]);
 }
 
+/**
+ * The newest measurement that is really for this model file: same name and, when both are
+ * known, the same digest and quantization (a re-pulled or different-quant model doesn't count).
+ */
 export function latestBenchmark(list: BenchmarkRecord[], m: ModelVariant): BenchmarkRecord | undefined {
   const names = new Set([m.resolvedTag, m.installed?.name, m.id].filter(Boolean) as string[]);
-  return list.find((b) => names.has(b.model) && b.kind === "warm") ?? list.find((b) => names.has(b.model));
+  const same = (b: BenchmarkRecord) =>
+    names.has(b.model) &&
+    !(b.digest && m.installed?.digest && b.digest !== m.installed.digest) &&
+    !(b.quantLabel && m.installed?.quantLabel && b.quantLabel !== m.installed.quantLabel);
+  return list.find((b) => same(b) && b.kind === "warm") ?? list.find(same);
+}
+
+const NO_BENCHMARKS: BenchmarkRecord[] = [];
+/** Measurements from this computer; none while a sample machine is shown (they'd be for different hardware). */
+export function useMeasuredBenchmarks(): BenchmarkRecord[] {
+  const sample = useStore((s) => s.hardware?.mode === "demo");
+  const list = useStore((s) => s.benchmarks);
+  return sample ? NO_BENCHMARKS : list;
 }
 
 export const STALE_DAYS = 45;

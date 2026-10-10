@@ -79,6 +79,15 @@ async function refreshFamilies(snap: { families: Record<string, FamilyInfo> }) {
 writeCsv();
 
 async function crawl() {
+// The committed snapshot is the fallback: a model that fails to refresh keeps its last good data.
+const previous: Record<string, OllamaVerification & { fromSeed: boolean }> = (() => {
+  try {
+    return JSON.parse(readFileSync("src/data/verified-snapshot.json", "utf8")).variants ?? {};
+  } catch {
+    return {};
+  }
+})();
+let kept = 0;
 const seed = importSeedCsv(seedText, seedPath, now);
 console.log(`Seed: ${seed.report.imported} variants / ${seed.report.families} families`);
 
@@ -113,11 +122,20 @@ await pool(jobs, CONCURRENCY, async (job) => {
     const v = await retry(() =>
       verifyOllamaVariant(job.family, job.variant, { badges: libByName.get(job.family)?.capabilities ?? [], maxTags, now, tagsCache: tags }),
     );
-    results[id] = { ...v, fromSeed: job.fromSeed };
-    if (!v.artifacts.length) failed++;
+    if (!v.artifacts.length && !v.cloudOnly && previous[id]?.artifacts.length) {
+      results[id] = previous[id]; // came back empty: keep what we had
+      kept++;
+      failed++;
+    } else {
+      results[id] = { ...v, fromSeed: job.fromSeed };
+      if (!v.artifacts.length) failed++;
+    }
   } catch (e) {
     failed++;
-    results[id] = {
+    if (previous[id]) {
+      results[id] = previous[id];
+      kept++;
+    } else results[id] = {
       family: job.family,
       variant: job.variant,
       defaultTag: null,
@@ -137,6 +155,13 @@ await pool(jobs, CONCURRENCY, async (job) => {
   if (done % 25 === 0) console.log(`  ${done}/${jobs.length} (${failed} without local artifacts)`);
 });
 
+// Too many failures means ollama.com was unreachable or changed: don't publish a degraded catalog.
+const hadData = jobs.filter((j) => previous[`${j.family}:${j.variant}`.toLowerCase()]?.artifacts.length).length;
+if (hadData > 20 && kept / hadData > 0.2) {
+  console.error(`Refresh aborted: ${kept} of ${hadData} previously verified variants failed to refresh. The committed snapshot is unchanged.`);
+  process.exit(1);
+}
+
 const families = await familyInfo();
 
 const snapshot = {
@@ -149,7 +174,7 @@ const snapshot = {
 };
 writeFileSync("src/data/verified-snapshot.json", JSON.stringify(snapshot));
 const ok = Object.values(results).filter((r) => r.artifacts.length).length;
-console.log(`Wrote src/data/verified-snapshot.json: ${ok}/${jobs.length} variants with verified artifacts, ${failed} without.`);
+console.log(`Wrote src/data/verified-snapshot.json: ${ok}/${jobs.length} variants with verified artifacts, ${failed} without (${kept} kept from the previous snapshot).`);
 }
 
 function writeCsv() {

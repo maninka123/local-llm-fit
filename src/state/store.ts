@@ -112,7 +112,14 @@ function routeFromHash(): Route {
   const [page, ...rest] = h.split("/");
   const valid: Page[] = ["overview", "run", "explore", "model", "compare", "settings"];
   if (page === "find") return { page: "run" };
-  if (page === "model" && rest.length) return { page: "model", modelId: decodeURIComponent(rest.join("/")) };
+  if (page === "model" && rest.length) {
+    // A malformed link (e.g. "%E0") must not stop the app from starting.
+    try {
+      return { page: "model", modelId: decodeURIComponent(rest.join("/")) };
+    } catch {
+      return { page: "explore" };
+    }
+  }
   if (valid.includes(page as Page)) return { page: page as Page };
   return { page: "overview" };
 }
@@ -158,6 +165,10 @@ function applyLocal(models: Map<string, ModelVariant>, s: Pick<State, "ollamaSta
 }
 
 const showDetails = new Map<string, Parameters<typeof modelFromInstalled>[1]>();
+/** Digest each cached /api/show answer belongs to: a re-pulled model under the same name is re-read. */
+const showDigests = new Map<string, string | undefined>();
+/** Latest catalog rebuild; an older rebuild that finishes later is discarded. */
+let catalogRev = 0;
 let toastId = 0;
 
 export const useStore = create<State>()(
@@ -255,8 +266,10 @@ export const useStore = create<State>()(
       setAutoUpdate: (v) => set({ autoUpdate: v }),
 
       async rebuildCatalog() {
-        const s = get();
+        const rev = ++catalogRev;
         const snap = await loadSnapshot();
+        if (rev !== catalogRev) return; // a newer rebuild started meanwhile
+        const s = get(); // read state after the await, so nothing newer is overwritten
         const b = buildCatalog(seedCsv, snap, s.liveVerifications, s.userModels);
         applyLocal(b.models, s, showDetails);
         set({ catalog: b.models, families: b.families, importReport: b.report, snapshotDate: b.snapshotDate, snapshotStats: { applied: b.snapshotApplied, added: b.snapshotAdded } });
@@ -287,9 +300,10 @@ export const useStore = create<State>()(
           const v = await c.version();
           const [tags, ps] = await Promise.all([c.tags(), c.ps().catch(() => ({ models: [] }))]);
           for (const t of tags.models) {
-            if (!showDetails.has(t.name)) {
+            if (!showDetails.has(t.name) || showDigests.get(t.name) !== t.digest) {
               try {
                 showDetails.set(t.name, await c.show(t.name));
+                showDigests.set(t.name, t.digest);
               } catch {
                 /* show failures leave metadata unknown */
               }

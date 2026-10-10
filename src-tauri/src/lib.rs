@@ -188,12 +188,25 @@ pub fn safe_file_name(name: &str) -> Option<String> {
     }
 }
 
+/// `name`, or `name (2).ext`, `name (3).ext`… so an earlier export is never overwritten.
+pub fn unique_path(dir: &std::path::Path, name: &str) -> std::path::PathBuf {
+    let first = dir.join(name);
+    if !first.exists() {
+        return first;
+    }
+    let (stem, ext) = match name.rfind('.') {
+        Some(i) => (&name[..i], &name[i..]),
+        None => (name, ""),
+    };
+    (2..10_000).map(|n| dir.join(format!("{stem} ({n}){ext}"))).find(|p| !p.exists()).unwrap_or(first)
+}
+
 /// Save an export (CSV/JSON) into the user's Downloads folder. Returns the full path.
 #[tauri::command]
 fn export_file(file_name: String, contents: String) -> Result<String, String> {
     let name = safe_file_name(&file_name).ok_or("Invalid file name")?;
     let dir = dirs::download_dir().or_else(dirs::home_dir).ok_or("No downloads folder")?;
-    let path = dir.join(name);
+    let path = unique_path(&dir, &name);
     std::fs::write(&path, contents).map_err(|e| e.to_string())?;
     Ok(path.to_string_lossy().into_owned())
 }
@@ -217,6 +230,17 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn exports_never_overwrite() {
+        let dir = std::env::temp_dir().join(format!("mfe-export-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let a = unique_path(&dir, "catalog.json");
+        std::fs::write(&a, "1").unwrap();
+        let b = unique_path(&dir, "catalog.json");
+        assert_eq!(b.file_name().unwrap(), "catalog (2).json");
+        std::fs::remove_dir_all(&dir).ok();
+    }
 
     #[test]
     fn metadata_allowlist() {

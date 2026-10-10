@@ -13,7 +13,11 @@ Everything here is implemented in `src/domain/estimator.ts`, a pure function `(m
 | **H_ram** | Host runtime | Runner process and buffers (0.3–0.9 GiB) |
 | **V, R, U** | Usable VRAM, RAM, unified pool | Live free memory minus your reserve (default 0.5 GiB VRAM, 2 GiB RAM, capped at a quarter of RAM on small boards). *Normal use* (no live readings): 10% VRAM / 20% RAM reserves |
 
-Every quantity is a range (low/mid/high). The class is computed at all three levels; if they disagree, confidence drops to *low* and a "borderline" warning appears.
+Every quantity is a range (low/mid/high). The class is computed at all three levels; if they disagree, confidence drops to *low* and a "borderline" warning appears. A GPU whose Ollama support isn't confirmed (AMD, Intel, older or unrecognised NVIDIA) is never given *high* confidence, and a warning says it may run on the CPU instead.
+
+Free memory is never allowed to exceed total memory, and RAM and VRAM each carry their own basis (live reading or planning reserve).
+
+**Groups.** *Runs well* means it fits fully on the GPU **and** the speed guess is at least 5 tok/s; a full-GPU fit slower than that is listed under *Runs, but slower*.
 
 ## Classes
 
@@ -40,7 +44,7 @@ Generating a word is mostly limited by memory bandwidth: every token reads the a
 
 `time per token = GPU bytes ÷ GPU bandwidth + CPU bytes ÷ RAM bandwidth + overhead`
 
-using published peak bandwidth for the GPU or chip (and for boards' RAM, e.g. Raspberry Pi 5 ≈ 17 GB/s), at 50–80% efficiency, so it is shown as a range with "≈". Typical desktop RAM is assumed when the board is unknown. When the GPU's bandwidth is unknown no number is shown. A local benchmark (`eval_count ÷ eval_duration`, converted from nanoseconds) is shown as "Measured X tok/s on this computer" and stored with model digest, quantization, context, Ollama version, GPU, driver, OS and backend.
+The range runs from a full context window (slow end, late in a long chat) through ~4K tokens (typical) to a fresh chat (fast end). It uses published peak bandwidth for the GPU or chip (and for boards' RAM, e.g. Raspberry Pi 5 ≈ 17 GB/s), at 50–80% efficiency, so it is shown as a range with "≈". Typical desktop RAM is assumed when the board is unknown. When the GPU's bandwidth is unknown no number is shown. A local benchmark (`eval_count ÷ eval_duration`, converted from nanoseconds) is shown as "Measured X tok/s on this computer" and stored with model digest, quantization, context, Ollama version, GPU, driver, OS and backend. A measurement is only shown for the same installed file (digest and quantization) and never while a sample machine is shown; the test always measures the installed file, and the page says so when the estimate is for another quantization.
 
 ## Data provenance
 

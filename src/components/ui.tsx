@@ -156,11 +156,14 @@ export function Switch({ checked, onChange, label }: { checked: boolean; onChang
 
 export function Modal({ title, onClose, children, wide, labelledBy }: { title: ReactNode; onClose: () => void; children: ReactNode; wide?: boolean; labelledBy?: string }) {
   const ref = useRef<HTMLDivElement>(null);
+  // Callers often pass a new onClose each render; keep the latest without re-running the focus setup.
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
   useEffect(() => {
     const prev = document.activeElement as HTMLElement | null;
     ref.current?.querySelector<HTMLElement>("button, [href], input, select, textarea")?.focus();
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") closeRef.current();
       if (e.key === "Tab" && ref.current) {
         const f = [...ref.current.querySelectorAll<HTMLElement>('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')].filter((x) => !x.hasAttribute("disabled"));
         if (!f.length) return;
@@ -178,7 +181,7 @@ export function Modal({ title, onClose, children, wide, labelledBy }: { title: R
       window.removeEventListener("keydown", onKey);
       prev?.focus();
     };
-  }, [onClose]);
+  }, []);
   const id = labelledBy ?? "modal-title";
   return (
     <div className="scrim" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>

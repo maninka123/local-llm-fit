@@ -10,6 +10,7 @@ import { Modal, Seg } from "./ui";
 import { BOARD_MACHINES, type DemoMachine } from "../platform/demoHardware";
 import { DEFAULT_SAMPLES, MAC_MODELS, buildSample, chipsFor, presetConfig, vramOptionsFor, type SampleConfig, type SampleKind } from "../platform/samples";
 import { GiB } from "../lib/units";
+import { EMPTY_OVERRIDES } from "../domain/types";
 import { FormIcon } from "./MachineBar";
 
 const RELEASES = "https://github.com/maninka123/local-llm-fit/releases";
@@ -291,7 +292,8 @@ function DetectedFormInner({ native, overrides, onDone }: { native: import("../d
       o.vramTotalGiB = vram;
       o.vramFreeGiB = Math.max(0.5, Math.round((vram - used) * 10) / 10);
     }
-    useStore.setState({ webHardware: "browser", hardware: native });
+    // Coming from a sample: drop its settings (GPU selection, combined GPUs, limits) first.
+    useStore.setState({ webHardware: "browser", hardware: native, ...(st.webHardware === "demo" ? { overrides: EMPTY_OVERRIDES } : {}) });
     st.setOverrides(o);
     st.setSetupOpen(false);
     onDone?.();

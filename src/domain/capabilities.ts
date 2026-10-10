@@ -159,11 +159,16 @@ export type InputSelection = Partial<Record<InputCap, boolean>>;
  */
 export function acceptsInputs(c: Capabilities, sel: InputSelection, verifiedOnly: boolean): boolean {
   const allowFamily = !verifiedOnly;
-  const textOk = resolveInput(c, "text").status;
-  if (textOk === "verified_unsupported") return false;
+  // With "only verified", capabilities you entered yourself don't count as verified.
+  const st = (k: InputCap) => {
+    const r = resolveInput(c, k);
+    return verifiedOnly && r.userEntered ? "unknown" : r.status;
+  };
+  const textOk = st("text");
+  if (resolveInput(c, "text").status === "verified_unsupported") return false;
   if (verifiedOnly && textOk !== "verified_supported") return false;
   for (const k of ["image", "audio", "video"] as InputCap[]) {
-    if (sel[k] && !isSupported(resolveInput(c, k).status, allowFamily)) return false;
+    if (sel[k] && !isSupported(st(k), allowFamily)) return false;
   }
   return true;
 }
@@ -180,25 +185,26 @@ export type CapFilter =
   | "thinking";
 
 export function matchesCapFilter(c: Capabilities, f: CapFilter, verifiedOnly: boolean): boolean {
-  const ok = (s: CapStatus) => isSupported(s, !verifiedOnly);
+  // "Only verified" ignores capabilities you entered yourself.
+  const ok = (r: ResolvedCap) => isSupported(verifiedOnly && r.userEntered ? "unknown" : r.status, !verifiedOnly);
   switch (f) {
     case "text_only":
       return modalityLabel(c).label === "Text only" && (!verifiedOnly || modalityLabel(c).verified);
     case "image":
     case "audio":
     case "video":
-      return ok(resolveInput(c, f).status);
+      return ok(resolveInput(c, f));
     case "multimodal":
-      return (["image", "audio", "video"] as InputCap[]).filter((k) => ok(resolveInput(c, k).status)).length >= 1 &&
-        ok(resolveInput(c, "text").status);
+      return (["image", "audio", "video"] as InputCap[]).filter((k) => ok(resolveInput(c, k))).length >= 1 &&
+        ok(resolveInput(c, "text"));
     case "tools":
-      return ok(resolveOutput(c, "tools").status);
+      return ok(resolveOutput(c, "tools"));
     case "json":
-      return ok(resolveOutput(c, "json").status);
+      return ok(resolveOutput(c, "json"));
     case "embeddings":
-      return ok(resolveOutput(c, "embeddings").status);
+      return ok(resolveOutput(c, "embeddings"));
     case "thinking":
-      return ok(resolveCap(c.thinking).status);
+      return ok(resolveCap(c.thinking));
   }
 }
 

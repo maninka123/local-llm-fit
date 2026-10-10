@@ -3,6 +3,14 @@ on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing version tag to build, e.g. v1.1.0"
+        required: true
+
+env:
+  # The version tag: the pushed tag, or the one chosen when run by hand.
+  TAG: ${{ inputs.tag || github.ref_name }}
 
 jobs:
   build:
@@ -25,6 +33,7 @@ jobs:
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
+        with: { ref: "${{ env.TAG }}" }
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - uses: dtolnay/rust-toolchain@stable
@@ -40,7 +49,7 @@ jobs:
         run: |
           {
             echo "body<<NOTES_EOF"
-            node scripts/release-notes.mjs "${GITHUB_REF_NAME#v}" body
+            node scripts/release-notes.mjs "${TAG#v}" body
             echo "NOTES_EOF"
           } >> "$GITHUB_OUTPUT"
       - uses: tauri-apps/tauri-action@v0
@@ -50,33 +59,35 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: Model Fit Explorer ${{ github.ref_name }}
+          tagName: ${{ env.TAG }}
+          releaseName: Model Fit Explorer ${{ env.TAG }}
           releaseBody: ${{ steps.notes.outputs.body }}
-          # Published (not draft) so installed apps can find latest.json for auto-update.
-          releaseDraft: false
+          # A draft until every platform is uploaded; the finalize job publishes it.
+          releaseDraft: true
           includeUpdaterJson: true
           args: ${{ matrix.args }}
 
   # The in-app update window shows latest.json "notes": replace the long release-page text
-  # with the short "What's new" bullets from CHANGELOG.md.
+  # with the short "What's new" bullets from CHANGELOG.md, then publish the release.
+  # Runs only when every platform built, so nobody sees (or auto-updates to) a partial release;
+  # if one fails the draft stays for a look.
   finalize:
     needs: build
-    # Still patch the notes if one platform failed; the others are already published.
-    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     permissions: { contents: write }
     steps:
       - uses: actions/checkout@v4
-      - name: Short update notes in latest.json
+        with: { ref: "${{ env.TAG }}" }
+      - name: Short update notes in latest.json, then publish
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          V="${GITHUB_REF_NAME#v}"
-          gh release download "$GITHUB_REF_NAME" --pattern latest.json --clobber
+          V="${TAG#v}"
+          gh release download "$TAG" --pattern latest.json --clobber
           NOTES="$(node scripts/release-notes.mjs "$V" notes)" node -e '
             const fs = require("fs");
             const d = JSON.parse(fs.readFileSync("latest.json", "utf8"));
             d.notes = process.env.NOTES;
             fs.writeFileSync("latest.json", JSON.stringify(d, null, 2));'
-          gh release upload "$GITHUB_REF_NAME" latest.json --clobber
+          gh release upload "$TAG" latest.json --clobber
+          gh release edit "$TAG" --draft=false --latest

@@ -27,8 +27,13 @@ export function BenchmarkPanel({ m, est }: { m: ModelVariant; est: Estimate }) {
 
   const name = m.installed?.name;
   const mine = benches.filter((b) => b.model === name || b.model === m.resolvedTag);
-  const canPull = ol.status === "online" && !m.installed && !!m.resolvedTag && !m.cloudOnly;
+  const canPull = ol.status === "online" && !m.installed && !!(est.artifact?.tag ?? m.resolvedTag) && !m.cloudOnly;
+  // The file the estimate describes is the one offered for download.
   const art = est.artifact ?? m.artifacts.find((a) => a.isDefaultTag);
+  const pullTag = art?.tag ?? m.resolvedTag;
+  const sample = hw?.mode === "demo";
+  // The test measures the installed file; flag when the estimate above is for another quantization.
+  const otherQuant = !!m.installed?.quantLabel && !!est.artifact && est.artifact.quantLabel !== m.installed.quantLabel ? est.artifact.quantLabel : null;
 
   const run = async () => {
     if (!name) return;
@@ -43,8 +48,9 @@ export function BenchmarkPanel({ m, est }: { m: ModelVariant; est: Estimate }) {
       osName: hw ? `${hw.os.name} ${hw.os.version}` : undefined,
       backend: hw?.gpus[0]?.backendHints.join("/"),
       powerSource: hw?.hasBattery.value ? "battery-capable device (power mode not read)" : undefined,
-      predictedClass: est.classification,
-      predictedTotalBytes: est.totalNeed?.mid,
+      // Only comparable when the estimate is for the installed file.
+      predictedClass: otherQuant ? undefined : est.classification,
+      predictedTotalBytes: otherQuant ? undefined : est.totalNeed?.mid,
     };
     try {
       for (const kind of ["cold", "warm"] as const) {
@@ -62,15 +68,15 @@ export function BenchmarkPanel({ m, est }: { m: ModelVariant; est: Estimate }) {
   };
 
   const doPull = async () => {
-    if (!m.resolvedTag) return;
+    if (!pullTag) return;
     setPullOpen(false);
     setPull({ status: "starting", done: 0, total: 0 });
     try {
-      await ollama().pull(m.resolvedTag, (l) => {
+      await ollama().pull(pullTag, (l) => {
         if (l.error) throw new Error(String(l.error));
         setPull({ status: String(l.status ?? ""), done: Number(l.completed ?? 0), total: Number(l.total ?? 0) });
       });
-      toast(`Downloaded ${m.resolvedTag}`, "good");
+      toast(`Downloaded ${pullTag}`, "good");
       await refresh();
     } catch (e) {
       toast(`Download failed: ${(e as Error).message}`, "bad");
@@ -92,11 +98,21 @@ export function BenchmarkPanel({ m, est }: { m: ModelVariant; est: Estimate }) {
               <Download size={15} /> Download…
             </button>
           )}
-          <button className="btn primary" disabled={!name || ol.status !== "online" || !!status} onClick={() => setConsent(true)} title={!name ? "Install this model in Ollama first" : undefined}>
+          <button className="btn primary" disabled={!name || ol.status !== "online" || !!status || sample} onClick={() => setConsent(true)} title={sample ? "Switch to your own computer to measure" : !name ? "Install this model in Ollama first" : undefined}>
             <Play size={15} /> {status ?? "Run Test"}
           </button>
         </div>
       </div>
+      {sample && (
+        <p className="faint" style={{ fontSize: 14.5, margin: 0 }}>
+          You're viewing a sample machine. Tests run on your own computer, so switch to it to measure.
+        </p>
+      )}
+      {otherQuant && name && !sample && (
+        <p className="faint" style={{ fontSize: 14.5, margin: 0 }}>
+          The estimate above is for {otherQuant}; the test measures the installed {m.installed?.quantLabel} file.
+        </p>
+      )}
       {ol.status !== "online" && (
         <p className="faint" style={{ fontSize: 14.5, margin: 0 }}>
           Ollama is not running. Start Ollama to see installed models and run tests. Estimates above don't need it.
@@ -154,7 +170,7 @@ export function BenchmarkPanel({ m, est }: { m: ModelVariant; est: Estimate }) {
         </Modal>
       )}
       {pullOpen && (
-        <Modal title={`Download ${m.resolvedTag}?`} onClose={() => setPullOpen(false)}>
+        <Modal title={`Download ${pullTag}?`} onClose={() => setPullOpen(false)}>
           <div className="stack">
             <p className="muted" style={{ margin: 0 }}>
               Ollama will download this model to its local model store.

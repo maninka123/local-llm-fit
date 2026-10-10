@@ -47,6 +47,9 @@ export async function fetchHfConfig(id: string): Promise<HfConfig | null> {
   }
 }
 
+/** The listing API returns at most this many entries per page. */
+export const HF_TREE_PAGE = 1000;
+
 export async function fetchHfTree(id: string): Promise<{ path: string; size?: number; type?: string }[]> {
   try {
     return await httpJson(`https://huggingface.co/api/models/${id}/tree/main?recursive=true`);
@@ -135,25 +138,40 @@ const GGUF_QUANT_RE = /(IQ\d_[A-Z]+|Q\d_K_[MSL]|Q\d_K|Q\d_\d|Q\d|F16|BF16|F32|MX
 
 export function ggufArtifactsFromTree(id: string, tree: { path: string; size?: number }[], checkedAt: string): Artifact[] {
   const files = tree.filter((f) => /\.gguf$/i.test(f.path) && !/mmproj/i.test(f.path) && f.size);
-  const mmproj = tree.find((f) => /mmproj/i.test(f.path) && /\.gguf$/i.test(f.path) && f.size);
-  // Group split shards (…-00001-of-00003.gguf) by quant label.
-  const byQuant = new Map<string, number>();
+  const projectors = tree.filter((f) => /mmproj/i.test(f.path) && /\.gguf$/i.test(f.path) && f.size);
+  // Prefer the F16 projector when several precisions are offered.
+  const mmproj = projectors.find((f) => /f16/i.test(f.path)) ?? projectors[0];
+  // One group per model file: split shards (…-00001-of-00003.gguf) belong to the same file.
+  const groups = new Map<string, { quant: string; size: number; file: string }>();
   for (const f of files) {
-    const q = GGUF_QUANT_RE.exec(f.path.split("/").pop() ?? "")?.[1]?.toUpperCase();
+    const file = f.path.replace(/-\d{5}-of-\d{5}(?=\.gguf$)/i, "");
+    const q = GGUF_QUANT_RE.exec(file.split("/").pop() ?? "")?.[1]?.toUpperCase();
     if (!q) continue;
-    byQuant.set(q, (byQuant.get(q) ?? 0) + (f.size ?? 0));
+    const g = groups.get(file) ?? { quant: q, size: 0, file };
+    g.size += f.size ?? 0;
+    groups.set(file, g);
   }
-  return [...byQuant.entries()].map(([q, size]) => ({
-    quant: normalizeQuant(q),
-    quantLabel: q,
-    weightBytes: size,
-    projectorBytes: mmproj?.size,
-    downloadBytes: size + (mmproj?.size ?? 0),
-    provenance: "verified" as const,
-    source: "Hugging Face file listing (GGUF)",
-    sourceUrl: `https://huggingface.co/${id}`,
-    checkedAt,
-  }));
+  // Same quantization offered twice (e.g. one file and the same model split into shards):
+  // keep one copy, never add them together. Genuinely different files keep their own entry.
+  const byQuant = new Map<string, { quant: string; size: number; file: string }[]>();
+  for (const g of groups.values()) {
+    const list = byQuant.get(g.quant) ?? [];
+    if (!list.some((x) => Math.abs(x.size - g.size) / Math.max(x.size, g.size) < 0.02)) list.push(g);
+    byQuant.set(g.quant, list);
+  }
+  return [...byQuant.values()].flatMap((list) =>
+    list.map((g) => ({
+      quant: normalizeQuant(g.quant),
+      quantLabel: list.length > 1 ? `${g.quant} (${g.file.split("/").pop()})` : g.quant,
+      weightBytes: g.size,
+      projectorBytes: mmproj?.size,
+      downloadBytes: g.size + (mmproj?.size ?? 0),
+      provenance: "verified" as const,
+      source: "Hugging Face file listing (GGUF)",
+      sourceUrl: `https://huggingface.co/${id}`,
+      checkedAt,
+    })),
+  );
 }
 
 export async function resolveHfModel(id: string, checkedAt = new Date().toISOString()): Promise<ModelVariant> {
@@ -167,6 +185,8 @@ export async function resolveHfModel(id: string, checkedAt = new Date().toISOStr
   const [org, repo] = info.id.split("/");
   const caps = capabilitiesFromPipeline(info.pipeline_tag, info.tags ?? [], url, checkedAt);
   const artifacts = ggufArtifactsFromTree(info.id, tree, checkedAt);
+  // A full page may mean the listing was cut off: don't present it as complete.
+  if (tree.length >= HF_TREE_PAGE) for (const a of artifacts) a.provenance = "estimated";
   return {
     id: `hf:${info.id}`.toLowerCase(),
     family: repo ?? info.id,

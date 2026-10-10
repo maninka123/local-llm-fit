@@ -4,7 +4,7 @@ import { useStore } from "../state/store";
 import { useMachine } from "../state/derived";
 import { estimate, type Estimate, type EstimatorSettings } from "../domain/estimator";
 import { resolveInput, resolveOutput } from "../domain/capabilities";
-import { BUCKETS, bucketOf, recommend, type Bucket } from "../domain/recommend";
+import { BUCKETS, bucketFor, recommend, type Bucket } from "../domain/recommend";
 import type { ModelVariant, QuantId } from "../domain/types";
 import { fmtBytes, fmtParams } from "../lib/units";
 import { Avatar, SpeedLabel } from "./ui";
@@ -67,7 +67,7 @@ export function SimilarModels({ shape, settings }: { shape: Shape; settings: Est
       const quant = published ? shape.quant : (m.artifacts.find((a) => a.isDefaultTag)?.quant ?? shape.quant);
       const e = estimate(m, { ...settings, quant }, machine);
       const r = recommend(m, e, families[m.family]);
-      out.push({ m, score: similarity * 50 + r.score * 0.5, bucket: bucketOf(e.classification), weights: e.weights?.mid ?? null, reasons: r.reasons, e });
+      out.push({ m, score: similarity * 50 + r.score * 0.5, bucket: bucketFor(e), weights: e.weights?.mid ?? null, reasons: r.reasons, e });
     }
     const seen = new Set<string>();
     return out

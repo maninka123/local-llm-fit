@@ -1,5 +1,6 @@
-import { useId, useMemo, useRef, useState } from "react";
-import { CARD_NAMES, lookupGpu } from "../platform/gpuSpecs";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { CARD_NAMES, bandwidthFor, lookupGpu } from "../platform/gpuSpecs";
+import { scrollWithin } from "./Select";
 
 // Styled, keyboard-friendly graphics-card picker (replaces the native datalist popup).
 const WORKSTATION = /rtx pro|\bada\b|rtx a\d|radeon pro/i;
@@ -7,20 +8,32 @@ const ORDERED = [...new Set([...CARD_NAMES.filter((n) => !WORKSTATION.test(n)), 
 
 export function GpuCombobox({ id, value, onChange, placeholder, names }: { id: string; value: string; onChange: (v: string) => void; placeholder?: string; names?: string[] }) {
   const [open, setOpen] = useState(false);
+  // What you've typed since opening. Until you type, every card is listed (not just the current one).
+  const [typed, setTyped] = useState<string | null>(null);
   const [active, setActive] = useState(0);
   const listId = useId();
   const blurTimer = useRef<number | null>(null);
 
   const matches = useMemo(() => {
-    const terms = value.toLowerCase().split(/\s+/).filter(Boolean);
+    const terms = (typed ?? "").toLowerCase().split(/\s+/).filter(Boolean);
     const all = names ?? ORDERED;
-    const list = terms.length ? all.filter((n) => terms.every((t) => n.toLowerCase().includes(t))) : all;
-    return list.slice(0, 8);
-  }, [value, names]);
+    return terms.length ? all.filter((n) => terms.every((t) => n.toLowerCase().includes(t))) : all;
+  }, [typed, names]);
 
   const choose = (name: string) => {
     onChange(name);
+    setTyped(null);
     setOpen(false);
+  };
+  // Keep the highlighted card in view (e.g. the current one when the list opens).
+  useEffect(() => {
+    if (open) scrollWithin(document.getElementById(listId), document.getElementById(`${listId}-${active}`));
+  }, [open, active, listId]);
+  const openList = () => {
+    setTyped(null);
+    const i = (names ?? ORDERED).indexOf(lookupGpu(value)?.name ?? value);
+    setActive(Math.max(0, i));
+    setOpen(true);
   };
 
   return (
@@ -36,12 +49,14 @@ export function GpuCombobox({ id, value, onChange, placeholder, names }: { id: s
         autoComplete="off"
         value={value}
         placeholder={placeholder}
-        onFocus={() => setOpen(true)}
+        onFocus={openList}
+        onClick={() => !open && openList()}
         onBlur={() => {
           blurTimer.current = window.setTimeout(() => setOpen(false), 120);
         }}
         onChange={(e) => {
           onChange(e.target.value);
+          setTyped(e.target.value);
           setActive(0);
           setOpen(true);
         }}
@@ -56,7 +71,8 @@ export function GpuCombobox({ id, value, onChange, placeholder, names }: { id: s
           } else if (e.key === "Enter" && open && matches[active]) {
             e.preventDefault();
             choose(matches[active]);
-          } else if (e.key === "Escape") {
+          } else if (e.key === "Escape" && open) {
+            e.stopPropagation(); // close the list, not the dialog around it
             setOpen(false);
           }
         }}
@@ -65,6 +81,7 @@ export function GpuCombobox({ id, value, onChange, placeholder, names }: { id: s
         <ul className="combo-list" id={listId} role="listbox">
           {matches.map((n, i) => {
             const vram = lookupGpu(n)?.vramGiB;
+            const bw = bandwidthFor(n);
             return (
               <li
                 key={n}
@@ -80,7 +97,11 @@ export function GpuCombobox({ id, value, onChange, placeholder, names }: { id: s
                 }}
               >
                 <span>{n}</span>
-                {vram && <span className="combo-meta">{vram.join(" / ")} GB</span>}
+                {vram && (
+                  <span className="combo-meta" title="Graphics memory sizes · memory speed (faster = quicker replies)">
+                    {vram.join(" / ")} GB{bw ? ` · ${Math.round(bw)} GB/s` : ""}
+                  </span>
+                )}
               </li>
             );
           })}

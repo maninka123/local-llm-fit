@@ -3,10 +3,10 @@ import { Select } from "../components/Select";
 import { create } from "zustand";
 import { Columns3, Search, SlidersHorizontal, SearchX, Check, Download } from "lucide-react";
 import { useStore, type QuantChoice } from "../state/store";
-import { latestBenchmark, quantFor, useMachine } from "../state/derived";
+import { latestBenchmark, useMeasuredBenchmarks, quantFor, useMachine } from "../state/derived";
 import { acceptsInputs, matchesCapFilter, type CapFilter } from "../domain/capabilities";
 import { CLASS_META, estimate, type Estimate } from "../domain/estimator";
-import { BUCKETS, bucketOf, recommend, type Bucket, type Recommendation } from "../domain/recommend";
+import { BUCKETS, bucketFor, recommend, type Bucket, type Recommendation } from "../domain/recommend";
 import type { ModelVariant, UseCase } from "../domain/types";
 import { fmtBytes, fmtParams } from "../lib/units";
 import { Avatar, FitPill, Seg, SpeedLabel, Switch, TONE_VAR, Empty } from "../components/ui";
@@ -97,7 +97,7 @@ export function Explorer() {
       }
       if (!acceptsInputs(m.capabilities, inputs, verifiedOnly)) return false;
       if (verifiedOnly && !m.lastVerified) return false;
-      if (f.buckets.length && !f.buckets.includes(bucketOf(e.classification))) return false;
+      if (f.buckets.length && !f.buckets.includes(bucketFor(e))) return false;
       if (f.caps.length && !f.caps.every((c) => matchesCapFilter(m.capabilities, c, verifiedOnly))) return false;
       if (f.uses.length && !f.uses.some((u) => m.useCases.includes(u))) return false;
       if (f.arch === "moe" && m.architecture.value !== "moe") return false;
@@ -116,8 +116,8 @@ export function Explorer() {
       const pb = b.m.totalParamsB.value ?? -1;
       if (f.sort === "largest") return pb - pa;
       if (f.sort === "smallest") return (pa < 0 ? 1e9 : pa) - (pb < 0 ? 1e9 : pb);
-      const ba = bucketOf(a.e.classification);
-      const bb = bucketOf(b.e.classification);
+      const ba = bucketFor(a.e);
+      const bb = bucketFor(b.e);
       if (ba !== bb) return rank(ba) - rank(bb);
       // "Won't run": closest to fitting first; elsewhere: best recommendation first.
       if (ba === "wont_run") return (a.e.totalNeed?.mid ?? Infinity) - (b.e.totalNeed?.mid ?? Infinity);
@@ -128,7 +128,7 @@ export function Explorer() {
 
   const counts = useMemo(() => {
     const c: Partial<Record<Bucket, number>> = {};
-    for (const r of all) c[bucketOf(r.e.classification)] = (c[bucketOf(r.e.classification)] ?? 0) + 1;
+    for (const r of all) c[bucketFor(r.e)] = (c[bucketFor(r.e)] ?? 0) + 1;
     return c;
   }, [all]);
   const [open, setOpen] = useState<Partial<Record<Bucket, boolean>>>({});
@@ -266,7 +266,7 @@ export function Explorer() {
       ) : f.sort === "recommended" ? (
         <div className="stack" style={{ gap: 30 }}>
           {BUCKETS.map((b) => {
-            const list = rows.filter((x) => bucketOf(x.e.classification) === b.id);
+            const list = rows.filter((x) => bucketFor(x.e) === b.id);
             if (!list.length) return null;
             const limit = open[b.id] ? list.length : b.id === "runs_well" ? 9 : 6;
             return (
@@ -318,7 +318,7 @@ export function ModelCard({ m, e, rec, rank }: { m: ModelVariant; e: Estimate; r
   const navigate = useStore((s) => s.navigate);
   const compare = useStore((s) => s.compare);
   const toggleCompare = useStore((s) => s.toggleCompare);
-  const benches = useStore((s) => s.benchmarks);
+  const benches = useMeasuredBenchmarks();
   const inCompare = compare.includes(m.id);
   const bench = latestBenchmark(benches, m);
   const p = e.pools;
@@ -334,7 +334,8 @@ export function ModelCard({ m, e, rec, rank }: { m: ModelVariant; e: Estimate; r
       aria-label={`${m.displayName}: ${CLASS_META[e.classification].title}`}
       onClick={() => navigate({ page: "model", modelId: m.id })}
       onKeyDown={(ev) => {
-        if (ev.key === "Enter" || ev.key === " ") {
+        // Only the card itself: keys pressed on buttons inside it (e.g. Compare) belong to them.
+        if (ev.target === ev.currentTarget && (ev.key === "Enter" || ev.key === " ")) {
           ev.preventDefault();
           navigate({ page: "model", modelId: m.id });
         }
@@ -396,7 +397,7 @@ export function ModelCard({ m, e, rec, rank }: { m: ModelVariant; e: Estimate; r
       )}
       <div className="mcard-foot">
         <div className="row" style={{ gap: 8 }}>
-          {m.cloudOnly ? <FitPill cls={e.classification} short cloud /> : <BucketBadge bucket={bucketOf(e.classification)} />}
+          {m.cloudOnly ? <FitPill cls={e.classification} short cloud /> : <BucketBadge bucket={bucketFor(e)} />}
           <SpeedLabel est={e} measured={bench?.generationTokPerSec} />
         </div>
         <button

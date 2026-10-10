@@ -115,6 +115,8 @@ impl SystemProbe for WinProbe {
             Err(e) => {
                 r.errors.push(format!("DXGI unavailable ({e}); falling back to Win32_VideoController (VRAM capped at 4 GiB, low confidence)."));
                 if let Some(cim) = self.cim(env, r) {
+                    // Each NVML row describes one card: match by name, otherwise take them in order.
+                    let mut nv_taken = vec![false; nv_rows.len()];
                     for (i, v) in cim.video.iter().enumerate() {
                         let vendor = v.pci.map(|(ven, _)| vendor_from_pci(ven)).unwrap_or_else(|| vendor_from_name(&v.name));
                         let ram = v.adapter_ram.unwrap_or(0);
@@ -128,7 +130,13 @@ impl SystemProbe for WinProbe {
                             d.dedicated_bytes = Field::known(ram, "Win32_VideoController.AdapterRAM (32-bit, may be capped)", Confidence::Low);
                         }
                         if vendor == GpuVendor::Nvidia {
-                            if let Some(row) = nv_rows.first() {
+                            let want = v.name.to_lowercase();
+                            let pick = (0..nv_rows.len())
+                                .find(|&k| !nv_taken[k] && nv_rows[k].name.to_lowercase() == want)
+                                .or_else(|| (0..nv_rows.len()).find(|&k| !nv_taken[k]));
+                            if let Some(k) = pick {
+                                nv_taken[k] = true;
+                                let row = &nv_rows[k];
                                 d.dedicated_bytes = Field::known(row.total_bytes, nv_src.clone(), Confidence::High);
                                 d.free_bytes = Field::known(row.free_bytes, format!("{nv_src} (live)"), Confidence::High);
                                 // Promote to discrete when NVML confirms capacity.

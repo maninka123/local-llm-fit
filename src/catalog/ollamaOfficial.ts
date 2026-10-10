@@ -37,13 +37,15 @@ interface RawManifest {
 
 export function parseManifest(j: RawManifest): ManifestInfo {
   const layers = Array.isArray(j.layers) ? j.layers : [];
-  const model = layers.find((l) => l.mediaType === "application/vnd.ollama.image.model");
+  // Weights are one GGUF "model" layer (or several), or, in Ollama's newer format, many "tensor" layers.
+  const weightLayers = layers.filter((l) => l.mediaType === "application/vnd.ollama.image.model" || l.mediaType === "application/vnd.ollama.image.tensor");
+  const model = weightLayers.find((l) => l.mediaType === "application/vnd.ollama.image.model") ?? weightLayers[0];
   const projector = layers.filter((l) => l.mediaType === "application/vnd.ollama.image.projector");
   const total = layers.reduce((a, l) => a + (typeof l.size === "number" ? l.size : 0), 0);
   return {
     configDigest: j.config?.digest,
     modelDigest: model?.digest,
-    modelBytes: typeof model?.size === "number" ? model.size : 0,
+    modelBytes: weightLayers.reduce((a, l) => a + (typeof l.size === "number" ? l.size : 0), 0),
     projectorBytes: projector.length ? projector.reduce((a, l) => a + (l.size ?? 0), 0) : undefined,
     totalBytes: total,
     format: j.format,
