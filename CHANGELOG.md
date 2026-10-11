@@ -2,6 +2,10 @@
 
 Short, user-facing notes. The section for each version is shown in the app's update window.
 
+## 1.1.5
+- "How your computer runs AI models" now uses short bullet points
+- "Add model" matches the other buttons
+
 ## 1.1.4
 - Sample machines always plan with "Normal use"; Live is greyed out there (it needs your own computer)
 - "People chatting at once" everywhere (1, 2, 4 or 8)

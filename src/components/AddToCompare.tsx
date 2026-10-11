@@ -62,10 +62,9 @@ export function AddToCompare({ big }: { big?: boolean }) {
 
   return (
     <div className="add-compare" ref={ref}>
-      <button className={`add-slot ${big ? "big" : ""}`} disabled={full} onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-haspopup="listbox">
-        <span className="add-plus">
-          <Plus size={20} strokeWidth={2.75} />
-        </span>
+      {/* Same pill button as the others: the main action when nothing is compared yet. */}
+      <button className={`btn ${big ? "primary" : ""}`} disabled={full} onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-haspopup="listbox">
+        <Plus size={16} strokeWidth={2.5} />
         {full ? "Compare is full (4)" : "Add model"}
       </button>
       {open && (

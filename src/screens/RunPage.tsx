@@ -34,6 +34,17 @@ function Spec({ label, value, sub, manual, tip }: { label: string; value: React.
   );
 }
 
+/** Short, scannable points under a diagram. */
+function Points({ items }: { items: string[] }) {
+  return (
+    <ul className="arch-points">
+      {items.map((t) => (
+        <li key={t}>{t}</li>
+      ))}
+    </ul>
+  );
+}
+
 function Tank({ title, total, free, usable, limit, note }: { title: string; total: number | null; free: number | null; usable: number | null; limit?: number | null; note: string }) {
   const t = total ?? 0;
   const used = total != null && free != null ? total - free : null;
@@ -311,9 +322,7 @@ export function RunPage() {
                 <b>{fmtBytes(machine.ramTotal)} unified memory</b>
                 <span>Both read the same memory: no copying, no double counting</span>
               </div>
-              <p className="muted" style={{ margin: 0, fontSize: 15 }}>
-                Fastest within the GPU's share of memory; past it, layers run on the CPU (same memory, slower).
-              </p>
+              <Points items={["Fastest within the GPU's share of memory", "Past it, layers run on the CPU: same memory, slower"]} />
             </div>
           ) : machine.arch === "discrete" ? (
             <div className="stack">
@@ -330,9 +339,7 @@ export function RunPage() {
                   <span>{fmtBytes(gpu?.vramTotal ?? null)}</span>
                 </div>
               </div>
-              <p className="muted" style={{ margin: 0, fontSize: 15 }}>
-                Fastest when the whole model fits in VRAM; layers that spill into RAM run on the slower CPU. Mixture-of-Experts models cope best.
-              </p>
+              <Points items={["Fastest when the whole model fits in VRAM", "Layers that spill into RAM run on the CPU: much slower", "Mixture-of-Experts models cope best"]} />
             </div>
           ) : (
             <div className="stack">
@@ -359,11 +366,13 @@ export function RunPage() {
                   <span>Present, but not used by Ollama</span>
                 </div>
               )}
-              <p className="muted" style={{ margin: 0, fontSize: 15 }}>
-              {slowRam
-                ? `Runs on the CPU from ${machine.arch === "integrated_shared" ? "the board's memory (its GPU isn't used)" : "the board's memory"}, much slower than a PC: expect a few words per second. 1–4B models suit it best.`
-                : "Runs on the CPU from system RAM: 1–8B models feel fine, bigger ones are slow. Mixture-of-Experts models cope best."}
-              </p>
+              <Points
+                items={
+                  slowRam
+                    ? [machine.arch === "integrated_shared" ? "Runs on the CPU; the board's GPU isn't used" : "Runs on the CPU", "Board memory is slow: expect a few words per second", "1–4B models suit it best"]
+                    : ["Runs on the CPU from system RAM", "1–8B models feel fine; bigger ones are slow", "Mixture-of-Experts models cope best"]
+                }
+              />
             </div>
           )}
         </section>
