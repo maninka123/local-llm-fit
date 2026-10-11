@@ -947,7 +947,7 @@ input[type="range"] {
   pointer-events: none;
   animation: pulse 2.6s ease-in-out infinite;
 }
-.active-overlay span {
+.active-overlay > span {
   position: absolute;
   top: -22px;
   left: 0;
@@ -3986,4 +3986,10 @@ a.btn:hover {
 .lane-segs {
   max-width: 100%;
   overflow: hidden;
+}
+
+/* a choice that doesn't apply here (e.g. Live on a sample machine) */
+.seg button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }

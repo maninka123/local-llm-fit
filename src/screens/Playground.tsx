@@ -198,7 +198,7 @@ export function Playground() {
               <div className="control-label">
                 <span>People chatting at once</span>
               </div>
-              <Seg label="Sessions" value={p.sessions} onChange={(v) => set({ sessions: v })} options={[1, 2, 4].map((n) => ({ value: n, label: String(n) }))} />
+              <Seg label="People chatting at once" value={p.sessions} onChange={(v) => set({ sessions: v })} options={[1, 2, 4, 8].map((n) => ({ value: n, label: String(n) }))} />
             </div>
           </div>
 

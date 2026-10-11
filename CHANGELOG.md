@@ -2,6 +2,12 @@
 
 Short, user-facing notes. The section for each version is shown in the app's update window.
 
+## 1.1.4
+- Sample machines always plan with "Normal use"; Live is greyed out there (it needs your own computer)
+- "People chatting at once" everywhere (1, 2, 4 or 8)
+- Fixed the "Active per token" label splitting over two lines
+- Shorter explanations under "How your computer runs AI models"
+
 ## 1.1.3
 - Two graphics cards: the top bar, Graphics card and memory bar now show both cards together
 - Macs and boards: lowering the memory also lowers the GPU's share, never more than the memory

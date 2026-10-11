@@ -184,13 +184,15 @@ describe("third review", () => {
 });
 
 describe("Live / Normal use on samples", () => {
-  it("a sample starts on Normal use, and Live stays available", async () => {
+  it("a sample has no live reading, so it is planned with Normal use even if Live was chosen", async () => {
     const { useStore } = await import("../state/store");
     useStore.getState().setSettings({ memoryBasis: "live" });
     useStore.getState().setSample({ kind: "desktop", gpu: "GeForce RTX 4090", vramGiB: 24, gpuCount: 1, ramGiB: 64 });
     expect(useStore.getState().settings.memoryBasis).toBe("planning");
     const m = buildMachineProfile(buildSample({ kind: "desktop", gpu: "GeForce RTX 4090", vramGiB: 24, gpuCount: 1, ramGiB: 64 }).report, EMPTY_OVERRIDES);
-    expect(m.ramFree).not.toBeNull(); // so the Live choice can be shown and used
-    expect(estimate(model({ total: 8, dense: true }), settings({ memoryBasis: "live" }), m).pools.ramMode).toBe("live");
+    expect(m.ramFree).toBeNull(); // so Live is shown greyed out
+    const e = estimate(model({ total: 8, dense: true }), settings({ memoryBasis: "live" }), m);
+    expect(e.pools.ramMode).toBe("planning");
+    expect(e.pools.vramMode).toBe("planning");
   });
 });

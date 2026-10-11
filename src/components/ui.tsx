@@ -129,14 +129,14 @@ export function Seg<T extends string | number>({
   label,
 }: {
   value: T;
-  options: { value: T; label: ReactNode; title?: string; className?: string; dot?: boolean }[];
+  options: { value: T; label: ReactNode; title?: string; className?: string; dot?: boolean; disabled?: boolean }[];
   onChange: (v: T) => void;
   label: string;
 }) {
   return (
     <div className="seg" role="group" aria-label={label}>
       {options.map((o) => (
-        <button key={String(o.value)} type="button" aria-pressed={o.value === value} title={o.title} className={o.className} onClick={() => onChange(o.value)}>
+        <button key={String(o.value)} type="button" aria-pressed={o.value === value} title={o.title} className={o.className} disabled={o.disabled} onClick={() => !o.disabled && onChange(o.value)}>
           {o.label}
           {o.dot && <span className="dot" aria-hidden />}
         </button>

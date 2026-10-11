@@ -306,16 +306,16 @@ function Detail({ m }: { m: ModelVariant }) {
               <span style={{ color: "var(--good)" }}>●</span> published file exists · <i>italic</i> = hypothetical. {quantInfo(quant).blurb}
             </p>
 
-            {machine.ramFree != null && (<><div className="divider" />
+            {(machine.ramFree != null || hw?.mode === "demo") && (<><div className="divider" />
             <div className="control-label">
               <span>Memory to plan for</span>
             </div>
             <Seg
               label="Memory to plan for"
-              value={settings.memoryBasis}
+              value={machine.ramFree == null ? "planning" : settings.memoryBasis}
               onChange={(v) => setSettings({ memoryBasis: v })}
               options={[
-                { value: "live", label: "Live" },
+                { value: "live", label: "Live", title: machine.ramFree == null ? "Live needs real free-memory readings from your own computer (desktop app)" : "Memory free right now, with your apps open", disabled: machine.ramFree == null },
                 { value: "planning", label: "Normal use" },
               ]}
             /></>)}
@@ -334,10 +334,10 @@ function Detail({ m }: { m: ModelVariant }) {
 
             <div className="divider" />
             <div className="control-label">
-              <span>Concurrent sessions</span>
-              <span className="faint">each gets its own KV cache</span>
+              <span>People chatting at once</span>
+              <span className="faint">each needs its own chat memory</span>
             </div>
-            <Seg label="Concurrent sessions" value={settings.parallel} onChange={(v) => setSettings({ parallel: v })} options={[1, 2, 4, 8].map((n) => ({ value: n, label: n === 1 ? "1 (you)" : String(n) }))} />
+            <Seg label="People chatting at once" value={settings.parallel} onChange={(v) => setSettings({ parallel: v })} options={[1, 2, 4, 8].map((n) => ({ value: n, label: String(n) }))} />
 
             <div className="divider" />
             <div className="control-label">

@@ -48,7 +48,7 @@ function Tank({ title, total, free, usable, limit, note }: { title: string; tota
               <AnimatedBytes bytes={free} /> free of {fmtBytes(total)}
             </>
           ) : (
-            <>{fmtBytes(total)} total · free not measured</>
+            <>{fmtBytes(total)} total · planned for normal use</>
           )}
         </span>
       </div>
@@ -312,7 +312,7 @@ export function RunPage() {
                 <span>Both read the same memory: no copying, no double counting</span>
               </div>
               <p className="muted" style={{ margin: 0, fontSize: 15 }}>
-                A model fits well when it stays under the GPU's working-set limit. Beyond that, some layers run on the CPU: same memory, slower math.
+                Fastest within the GPU's share of memory; past it, layers run on the CPU (same memory, slower).
               </p>
             </div>
           ) : machine.arch === "discrete" ? (
@@ -331,8 +331,7 @@ export function RunPage() {
                 </div>
               </div>
               <p className="muted" style={{ margin: 0, fontSize: 15 }}>
-                Fastest when the whole model fits in VRAM. If not, layers spill into system RAM and run on the CPU, which usually slows replies a lot.
-                Mixture-of-Experts models suffer less because only a few experts work on each word.
+                Fastest when the whole model fits in VRAM; layers that spill into RAM run on the slower CPU. Mixture-of-Experts models cope best.
               </p>
             </div>
           ) : (
@@ -362,8 +361,8 @@ export function RunPage() {
               )}
               <p className="muted" style={{ margin: 0, fontSize: 15 }}>
               {slowRam
-                ? `${machine.arch === "integrated_shared" ? "Ollama doesn't use this board's GPU, so models" : "Models"} run on the CPU from the board's memory, which is much slower than a PC's. Expect a few words per second: 1–4B models at Q4 are the sweet spot.`
-                : "Models run on the CPU from system RAM. Small models (1–8B at Q4) are usually pleasant; larger ones will be slow. Speed depends mostly on memory speed, so Mixture-of-Experts models are a good fit."}
+                ? `Runs on the CPU from ${machine.arch === "integrated_shared" ? "the board's memory (its GPU isn't used)" : "the board's memory"}, much slower than a PC: expect a few words per second. 1–4B models suit it best.`
+                : "Runs on the CPU from system RAM: 1–8B models feel fine, bigger ones are slow. Mixture-of-Experts models cope best."}
               </p>
             </div>
           )}
@@ -380,12 +379,12 @@ export function RunPage() {
             </p>
           </div>
           <div className="row">
-            {machine.ramFree != null && <Seg
+            {(machine.ramFree != null || hw.mode === "demo") && <Seg
               label="Memory to plan for"
-              value={settings.memoryBasis}
+              value={machine.ramFree == null ? "planning" : settings.memoryBasis}
               onChange={(v) => setSettings({ memoryBasis: v })}
               options={[
-                { value: "live", label: "Live", title: "Memory free right now, with your apps open" },
+                { value: "live", label: "Live", title: machine.ramFree == null ? "Live needs real free-memory readings from your own computer (desktop app)" : "Memory free right now, with your apps open", disabled: machine.ramFree == null },
                 { value: "planning", label: "Normal use", title: "Normal background use: keeps about 20% of memory for the system and apps" },
               ]}
             />}

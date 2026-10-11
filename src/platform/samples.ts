@@ -73,7 +73,7 @@ export function shortGpu(name: string): string {
 const winOs = { name: "Windows", version: "11 24H2", arch: "x86_64" };
 const r1 = (x: number) => Math.round(x * 10) / 10;
 
-function discreteGpu(id: string, name: string, vramGiB: number, laptop: boolean): GpuDevice {
+function discreteGpu(id: string, name: string, vramGiB: number): GpuDevice {
   const spec = lookupGpu(name);
   const vendor = spec?.vendor ?? "unknown";
   return gpu({
@@ -83,13 +83,14 @@ function discreteGpu(id: string, name: string, vramGiB: number, laptop: boolean)
     vendor,
     kind: "discrete",
     dedicatedBytes: f(vramGiB * GiB, "Sample (your choice)"),
-    // The desktop uses a little VRAM for the display.
-    freeBytes: f(r1(vramGiB - (laptop ? 0.4 : 0.8)) * GiB, "Sample (typical free)", "medium"),
+    // A sample has no live reading: it is always planned with "Normal use" reserves.
+    freeBytes: f<number>(null, "Sample (planned, no live reading)", "none"),
     backendHints: vendor === "nvidia" ? ["cuda"] : vendor === "amd" ? ["rocm", "vulkan"] : [],
   });
 }
 
-const ram = (totalGiB: number, freeShare = 0.7) => ({ totalBytes: f(totalGiB * GiB, "Sample (your choice)"), availableBytes: f(r1(totalGiB * freeShare) * GiB, "Sample (typical free)", "medium") });
+// Samples have no "free right now": memory is planned with the Normal use reserves.
+const ram = (totalGiB: number) => ({ totalBytes: f(totalGiB * GiB, "Sample (your choice)"), availableBytes: f<number>(null, "Sample (planned, no live reading)", "none") });
 
 /** Builds the hardware report for a sample configuration. */
 export function buildSample(cfg: SampleConfig): DemoMachine {
@@ -109,7 +110,7 @@ export function buildSample(cfg: SampleConfig): DemoMachine {
           cpu: workstation ? { brand: "AMD Ryzen Threadripper 7960X", physicalCores: 24, logicalCores: 48 } : { brand: "AMD Ryzen 7 7800X3D", physicalCores: 8, logicalCores: 16 },
           memory: ram(cfg.ramGiB),
           memoryArchitecture: f("discrete"),
-          gpus: Array.from({ length: cfg.gpuCount }, (_, i) => discreteGpu(`gpu${i}`, cfg.gpu, cfg.vramGiB, false)),
+          gpus: Array.from({ length: cfg.gpuCount }, (_, i) => discreteGpu(`gpu${i}`, cfg.gpu, cfg.vramGiB)),
         }),
       };
     }
@@ -124,10 +125,10 @@ export function buildSample(cfg: SampleConfig): DemoMachine {
           formFactorEvidence: ["Model: Gaming laptop", "Battery present"],
           hasBattery: f(true),
           cpu: { brand: "Intel Core i7-14650HX", physicalCores: 16, logicalCores: 24 },
-          memory: ram(cfg.ramGiB, 0.65),
+          memory: ram(cfg.ramGiB),
           memoryArchitecture: f("discrete"),
           // The CPU's own graphics are there too, but models use the NVIDIA GPU.
-          gpus: [discreteGpu("gpu0", cfg.gpu, cfg.vramGiB, true), gpu({ id: "gpu1", name: "Intel UHD Graphics", vendor: "intel", kind: "integrated" })],
+          gpus: [discreteGpu("gpu0", cfg.gpu, cfg.vramGiB), gpu({ id: "gpu1", name: "Intel UHD Graphics", vendor: "intel", kind: "integrated" })],
         }),
       };
     }
@@ -145,7 +146,7 @@ export function buildSample(cfg: SampleConfig): DemoMachine {
           formFactorEvidence: [`Model: ${cfg.model}`],
           hasBattery: f(laptop),
           cpu: { brand: cfg.chip, physicalCores: null, logicalCores: null },
-          memory: ram(cfg.ramGiB, 0.67),
+          memory: ram(cfg.ramGiB),
           memoryArchitecture: f("unified"),
           unifiedGpuWorkingSetBytes: f(r1(limit) * GiB, "Sample (typical macOS GPU limit)", "medium"),
           gpus: [gpu({ id: "gpu0", name: `${cfg.chip} GPU`, vendor: "apple", kind: "unified", backendHints: ["metal"] })],
@@ -162,7 +163,7 @@ export function buildSample(cfg: SampleConfig): DemoMachine {
           formFactorEvidence: ["Model: Office laptop", "Battery present"],
           hasBattery: f(true),
           cpu: { brand: "Intel Core Ultra 5 125U", physicalCores: 12, logicalCores: 14 },
-          memory: ram(cfg.ramGiB, 0.55),
+          memory: ram(cfg.ramGiB),
           memoryArchitecture: f("integrated_shared"),
           gpus: [gpu({ id: "gpu0", name: "Intel Graphics", vendor: "intel", kind: "integrated", sharedBytes: f((cfg.ramGiB / 2) * GiB, "Sample (shares system RAM)") })],
         }),
@@ -176,7 +177,7 @@ export function buildSample(cfg: SampleConfig): DemoMachine {
         ...b.report,
         memory: {
           totalBytes: f(cfg.ramGiB * GiB, "Sample (your choice)"),
-          availableBytes: f(scale(b.report.memory.availableBytes.value), "Sample (typical free)", "medium"),
+          availableBytes: f<number>(null, "Sample (planned, no live reading)", "none"),
         },
         unifiedGpuWorkingSetBytes:
           b.report.unifiedGpuWorkingSetBytes.value != null ? f(scale(b.report.unifiedGpuWorkingSetBytes.value), b.report.unifiedGpuWorkingSetBytes.source, "medium") : b.report.unifiedGpuWorkingSetBytes,
