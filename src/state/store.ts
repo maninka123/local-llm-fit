@@ -176,7 +176,8 @@ export const useStore = create<State>()(
   persist(
     (set, get) => ({
       overrides: EMPTY_OVERRIDES,
-      settings: DEFAULT_SETTINGS,
+      // Website: starts on a sample, so "Normal use" (no live readings there). Desktop: "Live" for your computer.
+      settings: { ...DEFAULT_SETTINGS, memoryBasis: isTauri() ? "live" : "planning" },
       quantChoice: "AUTO",
       perModelQuant: {},
       liveVerifications: {},
@@ -251,11 +252,13 @@ export const useStore = create<State>()(
         set({ demoId: id });
       },
       setSample(cfg) {
-        set({ sample: cfg, webHardware: "demo", overrides: { ...EMPTY_OVERRIDES, ...sampleOverrides(cfg) } });
+        // A sample starts on "Normal use" (its free figures are typical, not measured); Live is still a click away.
+        set({ sample: cfg, webHardware: "demo", overrides: { ...EMPTY_OVERRIDES, ...sampleOverrides(cfg) }, settings: { ...get().settings, memoryBasis: "planning" } });
         void get().rescanHardware();
       },
       useBrowserHardware() {
-        set({ webHardware: "browser", overrides: EMPTY_OVERRIDES });
+        // Your own computer in the desktop app starts on "Live" (real free-memory readings).
+        set({ webHardware: "browser", overrides: EMPTY_OVERRIDES, ...(isTauri() ? { settings: { ...get().settings, memoryBasis: "live" as const } } : {}) });
         void get().rescanHardware();
       },
       saveBrowserSetup(s) {
@@ -377,7 +380,7 @@ export const useStore = create<State>()(
         if (p.userModels) p.userModels = (Array.isArray(p.userModels) ? p.userModels : []).map(sanitizeModel).filter((m): m is ModelVariant => !!m);
         if (p.liveVerifications) p.liveVerifications = sanitizeMap(p.liveVerifications, sanitizeVerification);
         if (p.capabilityEvidence) p.capabilityEvidence = sanitizeCapabilityEvidence(p.capabilityEvidence);
-        return { ...current, ...p, settings: { ...DEFAULT_SETTINGS, ...(p.settings ?? {}), reserves: { ...DEFAULT_SETTINGS.reserves, ...(p.settings?.reserves ?? {}) } }, overrides: { ...EMPTY_OVERRIDES, ...(p.overrides ?? {}) } };
+        return { ...current, ...p, settings: { ...current.settings, ...(p.settings ?? {}), reserves: { ...DEFAULT_SETTINGS.reserves, ...(p.settings?.reserves ?? {}) } }, overrides: { ...EMPTY_OVERRIDES, ...(p.overrides ?? {}) } };
       },
     },
   ),

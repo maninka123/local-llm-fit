@@ -2,6 +2,7 @@ import { ArrowLeft, Cpu, HardDrive, Laptop, Monitor, MemoryStick, RefreshCw, Dow
 import { useMemo } from "react";
 import { useStore } from "../state/store";
 import { useMachine } from "../state/derived";
+import { gpuSummary } from "../domain/hardware";
 import type { MachineProfile } from "../domain/estimator";
 import { useUpdater } from "./Updater";
 import { buildSample, presetConfig } from "../platform/samples";
@@ -30,19 +31,19 @@ export function FormIcon({ f, size = 15 }: { f: FormFactor | null | undefined; s
 
 /** OS, device type, processor and memory chips for one machine. */
 function HardwareChips({ hw, m, ff, ffConf }: { hw: HardwareReport; m: MachineProfile; ff: FormFactor | null; ffConf: string }) {
-  const gpu = m.gpus[0];
+  const gpu = gpuSummary(m);
   return (
     <>
-      <span className="chip" title={`${hw.os.name} ${hw.os.version}`}>
+      <span className="chip chip-detail" title={`${hw.os.name} ${hw.os.version}`}>
         <HardDrive size={15} />
         <b>{hw.os.name}</b>
         <span className="muted opt">{hw.os.version}</span>
       </span>
-      <span className="chip" title={hw.formFactorEvidence.join(" · ") || "No evidence"}>
+      <span className="chip chip-detail" title={hw.formFactorEvidence.join(" · ") || "No evidence"}>
         <FormIcon f={ff} />
         <b>{ff && ff !== "unknown" ? (ffConf === "low" || ffConf === "medium" ? `Likely ${FORM_LABEL[ff].toLowerCase()}` : FORM_LABEL[ff]) : "Form factor unknown"}</b>
       </span>
-      <span className="chip" title={`${hw.cpu.physicalCores ?? "?"} physical / ${hw.cpu.logicalCores ?? "?"} logical cores`}>
+      <span className="chip chip-detail" title={`${hw.cpu.physicalCores ?? "?"} physical / ${hw.cpu.logicalCores ?? "?"} logical cores`}>
         <Cpu size={15} />
         <b>{hw.cpu.brand}</b>
       </span>
@@ -57,7 +58,7 @@ function HardwareChips({ hw, m, ff, ffConf }: { hw: HardwareReport; m: MachinePr
       ) : (
         <>
           {m.arch === "discrete" && gpu && (
-            <span className="chip" title={`${gpu.name}${m.gpus.length > 1 ? ` (+${m.gpus.length - 1} more selected)` : ""}`}>
+            <span className="chip" title={`${gpu.name}${gpu.count > 1 ? " (combined)" : m.gpus.length > 1 ? ` (+${m.gpus.length - 1} more selected, not combined)` : ""}`}>
               <CircuitBoard size={15} />
               <span className="k">VRAM</span>
               <b className="num">{gpu.vramFree != null ? `${fmtBytes(gpu.vramFree)} free` : fmtBytes(gpu.vramTotal)}</b>

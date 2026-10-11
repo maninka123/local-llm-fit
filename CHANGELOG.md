@@ -2,6 +2,13 @@
 
 Short, user-facing notes. The section for each version is shown in the app's update window.
 
+## 1.1.3
+- Two graphics cards: the top bar, Graphics card and memory bar now show both cards together
+- Macs and boards: lowering the memory also lowers the GPU's share, never more than the memory
+- Samples start on "Normal use" (Live is still one click away); your own computer starts on Live
+- CPU-only computers get the same "How your computer runs AI models" diagram as the others
+- Phones: compact top bar and no more text running off the screen; clearer "+" on Add model
+
 ## 1.1.2
 - Restoring a backup keeps every file's quantization
 - Benchmark results are compared with the estimate only when the settings match

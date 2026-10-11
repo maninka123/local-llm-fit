@@ -64,7 +64,7 @@ export function AddToCompare({ big }: { big?: boolean }) {
     <div className="add-compare" ref={ref}>
       <button className={`add-slot ${big ? "big" : ""}`} disabled={full} onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-haspopup="listbox">
         <span className="add-plus">
-          <Plus size={20} />
+          <Plus size={20} strokeWidth={2.75} />
         </span>
         {full ? "Compare is full (4)" : "Add model"}
       </button>

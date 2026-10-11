@@ -1,5 +1,6 @@
 import { useMemo } from "react";
-import { Cpu, Search, Sparkles, Zap } from "lucide-react";
+import { gpuSummary } from "../domain/hardware";
+import { Cpu, Search, Sparkles, Zap, MemoryStick } from "lucide-react";
 import { useStore } from "../state/store";
 import { quantFor, useMachine } from "../state/derived";
 import { acceptsInputs } from "../domain/capabilities";
@@ -135,7 +136,7 @@ export function RunPage() {
 
   const est0 = results[0]?.e ?? (catalog.size ? estimate([...catalog.values()][0], { ...DEFAULT_SETTINGS, ...settings }, machine) : null);
   const ff = o.formFactor ?? hw.formFactor.value;
-  const gpu = machine.gpus[0];
+  const gpu = gpuSummary(machine); // both cards added up when they're combined
   const total = results.length || 1;
   const archText: Record<string, string> = {
     discrete: "Dedicated GPU memory + separate system RAM",
@@ -258,7 +259,13 @@ export function RunPage() {
           </div>
           <div className="tank-row">
             {machine.arch === "discrete" && gpu && (
-              <Tank title={`GPU · ${gpu.name}`} total={gpu.vramTotal} free={gpu.vramFree} usable={est0?.pools.vramUsable ?? null} note="Dedicated VRAM only. Windows 'shared GPU memory' is system RAM and is not counted here." />
+              <Tank
+                title={`GPU · ${gpu.name}`}
+                total={gpu.vramTotal}
+                free={gpu.vramFree}
+                usable={est0?.pools.vramUsable ?? null}
+                note={`${gpu.count > 1 ? "Both cards together: Ollama spreads a model across them. " : ""}Dedicated VRAM only. Windows 'shared GPU memory' is system RAM and is not counted here.`}
+              />
             )}
             <Tank
               title={machine.arch === "unified" ? "Unified memory (CPU + GPU)" : "System RAM"}
@@ -329,11 +336,36 @@ export function RunPage() {
               </p>
             </div>
           ) : (
-            <p className="muted" style={{ fontSize: 15 }}>
+            <div className="stack">
+              {/* CPU-only / built-in graphics: same diagram style as the GPU machines. */}
+              <div className="arch-diagram">
+                <div className="chipbox">
+                  <Cpu size={18} />
+                  <b>CPU cores</b>
+                  <span>{hw.cpu.logicalCores ? `${hw.cpu.logicalCores} threads · ` : ""}run the whole model</span>
+                </div>
+                <div className="bus" />
+                <div className="chipbox">
+                  <MemoryStick size={18} />
+                  <b>System RAM</b>
+                  <span>
+                    {fmtBytes(machine.ramTotal)} · holds the model{machine.ramBandwidthGBs ? ` · ≈ ${Math.round(machine.ramBandwidthGBs)} GB/s` : ""}
+                  </span>
+                </div>
+              </div>
+              {machine.arch === "integrated_shared" && (
+                <div className="chipbox off" title="Ollama has no GPU backend for this graphics chip">
+                  <Sparkles size={18} />
+                  <b>{hw.gpus.find((g) => g.kind === "integrated")?.name ?? "Built-in graphics"}</b>
+                  <span>Present, but not used by Ollama</span>
+                </div>
+              )}
+              <p className="muted" style={{ margin: 0, fontSize: 15 }}>
               {slowRam
                 ? `${machine.arch === "integrated_shared" ? "Ollama doesn't use this board's GPU, so models" : "Models"} run on the CPU from the board's memory, which is much slower than a PC's. Expect a few words per second: 1–4B models at Q4 are the sweet spot.`
-                : "Models run on the CPU from system RAM. Small models (1–8B at Q4) are usually pleasant; larger ones will be slow. GPU acceleration on integrated graphics is not assumed."}
-            </p>
+                : "Models run on the CPU from system RAM. Small models (1–8B at Q4) are usually pleasant; larger ones will be slow. Speed depends mostly on memory speed, so Mixture-of-Experts models are a good fit."}
+              </p>
+            </div>
           )}
         </section>
       </div>

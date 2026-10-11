@@ -72,7 +72,14 @@ export function buildMachineProfile(report: HardwareReport, o: HardwareOverrides
     backend = report.gpus.some((g) => g.vendor === "apple" || (g.vendor === "nvidia" && g.kind === "unified")) || o.memoryArchitecture === "unified" ? true : null;
   }
 
-  const unifiedGpuLimit = o.unifiedGpuLimitGiB != null ? o.unifiedGpuLimitGiB * GiB : report.unifiedGpuWorkingSetBytes.value;
+  // The GPU's share of unified memory follows the memory total: if you change the total, the
+  // detected share scales with it, and it can never be more than the memory itself.
+  const detectedLimit = report.unifiedGpuWorkingSetBytes.value;
+  const detectedTotal = report.memory.totalBytes.value;
+  const scaledLimit =
+    detectedLimit != null && o.ramTotalGiB != null && detectedTotal ? (detectedLimit * (o.ramTotalGiB * GiB)) / detectedTotal : detectedLimit;
+  const rawLimit = o.unifiedGpuLimitGiB != null ? o.unifiedGpuLimitGiB * GiB : scaledLimit;
+  const unifiedGpuLimit = rawLimit != null && ramTotal != null ? Math.min(rawLimit, ramTotal) : rawLimit;
   const label =
     arch === "unified"
       ? "Unified memory"
@@ -101,5 +108,24 @@ export function buildMachineProfile(report: HardwareReport, o: HardwareOverrides
     unifiedGpuLimitSource: o.unifiedGpuLimitGiB != null ? "user" : report.unifiedGpuWorkingSetBytes.value != null ? "detected" : "assumed",
     gpuBackendSupported: backend,
     label,
+  };
+}
+
+/**
+ * The GPU memory the estimates use, for display: both cards added up when they're combined
+ * (Ollama spreads a model across them), otherwise the first selected card.
+ */
+export function gpuSummary(m: MachineProfile): (MachineGpu & { count: number }) | null {
+  if (!m.gpus.length) return null;
+  const used = m.combineGpus ? m.gpus : [m.gpus[0]];
+  const sum = (xs: (number | null)[]) => (xs.some((x) => x == null) ? null : xs.reduce<number>((a, x) => a + (x as number), 0));
+  const names = [...new Set(used.map((g) => g.name))];
+  return {
+    id: used[0].id,
+    name: used.length === 1 ? used[0].name : names.length === 1 ? `${used.length} × ${names[0]}` : names.join(" + "),
+    vramTotal: sum(used.map((g) => g.vramTotal)),
+    // Free can't exceed the card's own size.
+    vramFree: sum(used.map((g) => (g.vramFree != null && g.vramTotal != null ? Math.min(g.vramFree, g.vramTotal) : g.vramFree))),
+    count: used.length,
   };
 }

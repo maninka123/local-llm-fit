@@ -12,6 +12,7 @@ import { sanitizeArtifact, sanitizeBenchmark, sanitizeCapabilityEvidence, saniti
 import { fetchTransport, nextLink, setTransport } from "../catalog/net";
 import { latestBenchmark } from "../state/derived";
 import { buildSample } from "../platform/samples";
+import { DEMO_MACHINES } from "../platform/demoHardware";
 
 // Regression tests for issues found in the 1.1.0 review.
 
@@ -45,7 +46,8 @@ describe("catalog sizes", () => {
 
 describe("memory pools", () => {
   it("free memory never exceeds the total", () => {
-    const r = buildSample({ kind: "office", ramGiB: 16 }).report;
+    // A machine with a live free-memory reading (samples have none: they always plan with Normal use).
+    const r = DEMO_MACHINES.find((d) => d.id === "office-igpu")!.report;
     const p = buildMachineProfile(r, { ...EMPTY_OVERRIDES, ramTotalGiB: 8 });
     expect(p.ramFree!).toBeLessThanOrEqual(8 * GiB);
     const e = estimate(model({ total: 1, dense: true }), settings(), p);
@@ -178,5 +180,17 @@ describe("third review", () => {
     } finally {
       setTransport(fetchTransport());
     }
+  });
+});
+
+describe("Live / Normal use on samples", () => {
+  it("a sample starts on Normal use, and Live stays available", async () => {
+    const { useStore } = await import("../state/store");
+    useStore.getState().setSettings({ memoryBasis: "live" });
+    useStore.getState().setSample({ kind: "desktop", gpu: "GeForce RTX 4090", vramGiB: 24, gpuCount: 1, ramGiB: 64 });
+    expect(useStore.getState().settings.memoryBasis).toBe("planning");
+    const m = buildMachineProfile(buildSample({ kind: "desktop", gpu: "GeForce RTX 4090", vramGiB: 24, gpuCount: 1, ramGiB: 64 }).report, EMPTY_OVERRIDES);
+    expect(m.ramFree).not.toBeNull(); // so the Live choice can be shown and used
+    expect(estimate(model({ total: 8, dense: true }), settings({ memoryBasis: "live" }), m).pools.ramMode).toBe("live");
   });
 });

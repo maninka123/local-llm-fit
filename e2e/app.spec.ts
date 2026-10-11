@@ -301,3 +301,26 @@ test("samples: a Mac offers only its own chips, and each chip's memory sizes", a
   await expect(page.locator(".machine-bar")).toContainText("Sample: Mac Studio");
   await expect(page.locator(".machine-bar")).toContainText("Apple M2 Ultra");
 });
+
+test("phones: no page scrolls sideways and no broken numbers, on very different machines", async ({ browser }) => {
+  const samples = [
+    { kind: "desktop", gpu: "GeForce RTX 3090 / 3090 Ti", vramGiB: 24, gpuCount: 2, ramGiB: 128 },
+    { kind: "office", ramGiB: 8 },
+    { kind: "board", boardId: "jetson-nano-4", ramGiB: 4 },
+  ];
+  for (const sample of samples) {
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 900 } });
+    await ctx.addInitScript((s) => localStorage.setItem("model-fit-explorer", JSON.stringify({ state: { webHardware: "demo", theme: "dark", sample: s }, version: 2 })), sample);
+    const page = await ctx.newPage();
+    await page.route("**/__proxy/ollama-local/**", (r) => r.abort());
+    for (const h of ["#/overview", "#/run", "#/explore", "#/model/llama3.2%3A3b", "#/compare"]) {
+      await page.goto("/" + h);
+      await expect(page.locator(".machine-bar")).toContainText("Sample:");
+      await page.waitForTimeout(400);
+      const r = await page.evaluate(() => ({ over: document.documentElement.scrollWidth - document.documentElement.clientWidth, text: document.querySelector("main")?.innerText ?? "" }));
+      expect(r.over, `${sample.kind} ${h} scrolls sideways`).toBeLessThanOrEqual(1);
+      expect(r.text, `${sample.kind} ${h}`).not.toMatch(/NaN|undefined|Infinity/);
+    }
+    await ctx.close();
+  }
+});

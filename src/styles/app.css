@@ -3914,3 +3914,76 @@ a.btn:hover {
   text-transform: uppercase;
   color: var(--text-3);
 }
+
+/* ---- visual fixes from the corner-case sweep ---- */
+.add-plus {
+  color: #fff; /* white "+" on the accent circle in both themes */
+}
+.overflow-mark.flip span {
+  left: auto;
+  right: 4px;
+}
+.mname,
+.choice-title,
+.spec .value {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.mcard-top > div,
+.spec .label {
+  min-width: 0;
+}
+.spec .label {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  align-items: center;
+}
+@media (max-width: 640px) {
+  /* Phone: a compact bar that scrolls away, with only what matters (sample/name and memory). */
+  .machine-bar {
+    position: static;
+  }
+  .machine-bar .chip-detail {
+    display: none;
+  }
+  .ao-more {
+    display: none;
+  }
+  /* room for the "Active per token" label above the bar once the label stacks over it */
+  .lane-track.big {
+    margin-top: 24px;
+  }
+}
+
+/* "How your computer runs AI models": a part that exists but isn't used (built-in graphics) */
+.chipbox.off {
+  opacity: 0.7;
+  border-style: dashed;
+  background: transparent;
+}
+.chipbox.off b {
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, var(--text-3) 70%, transparent);
+}
+/* Grid columns may shrink below their longest one-line text (which then ellipsizes) instead of
+   pushing the column past the screen edge on phones. */
+.grid > * {
+  min-width: 0;
+}
+/* Cards and their stacks shrink to the column; long model names end with "…" instead. */
+.stack > *,
+.mcard,
+.mcard > *,
+.mcard-top > * {
+  min-width: 0;
+}
+.mcard .mname {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Memory bar segments never poke out past their bar on narrow screens. */
+.lane-segs {
+  max-width: 100%;
+  overflow: hidden;
+}

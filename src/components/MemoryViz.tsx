@@ -19,6 +19,9 @@ function niceStep(max: number): number {
   return 1024 * GiB;
 }
 
+/** Marks past ~55% of the width put their label on the left, so it never runs off the edge. */
+const markClass = (b: number, scale: number) => `overflow-mark${b / scale > 0.55 ? " flip" : ""}`;
+
 function pct(b: number, scale: number) {
   return `${Math.max(0, (b / scale) * 100)}%`;
 }
@@ -149,7 +152,7 @@ export function MemoryViz({ est, machine, showActive }: { est: Estimate; machine
       <>
         <Lane title="GPU memory (VRAM)" sub={`${fmtBytes(p.vramPhysical)} physical · ${fmtBytes(p.vramUsable)} usable`} capacity={p.vramPhysical} scale={scale} segs={vSegs}>
           {vUsed > vramCap * 1.001 && vramCap > 0 && (
-            <div className="overflow-mark" style={{ left: pct(vramCap, scale) }}>
+            <div className={markClass(vramCap, scale)} style={{ left: pct(vramCap, scale) }}>
               <span>Over capacity</span>
             </div>
           )}
@@ -172,7 +175,7 @@ export function MemoryViz({ est, machine, showActive }: { est: Estimate; machine
         )}
         <Lane title="System RAM" sub={`${fmtBytes(p.ramPhysical)} physical · ${fmtBytes(p.ramUsable)} usable`} capacity={p.ramPhysical} scale={scale} segs={rSegs}>
           {rSegs.reduce((a, s) => a + s.bytes, 0) > ramCap * 1.001 && ramCap > 0 && (
-            <div className="overflow-mark" style={{ left: pct(ramCap, scale) }}>
+            <div className={markClass(ramCap, scale)} style={{ left: pct(ramCap, scale) }}>
               <span>Over capacity</span>
             </div>
           )}
@@ -216,7 +219,7 @@ export function MemoryViz({ est, machine, showActive }: { est: Estimate; machine
           </div>
         )}
         {used > ramCap * 1.001 && ramCap > 0 && (
-          <div className="overflow-mark" style={{ left: pct(ramCap, scale) }}>
+          <div className={markClass(ramCap, scale)} style={{ left: pct(ramCap, scale) }}>
             <span>Over capacity</span>
           </div>
         )}
@@ -234,7 +237,10 @@ export function MemoryViz({ est, machine, showActive }: { est: Estimate; machine
             role="img"
             aria-label={`Active per token about ${fmtBytes(active)}. Compute footprint, changes every token, not a placement.`}
           >
-            <span>Active per token ≈ {fmtBytes(active)} · changes every token</span>
+            <span>
+              Active per token ≈ {fmtBytes(active)}
+              <span className="ao-more"> · changes every token</span>
+            </span>
           </div>
         )}
       </Lane>
